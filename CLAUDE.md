@@ -170,30 +170,41 @@ coincidan; si no lo subes, la caché vieja sobrevive.
 
 ## 6. Sistema de diseño — respétalo
 
-Dirección visual: **recibo de caja**. Papel marfil, tinta verde muy oscura, cifras en
-monoespaciada tabular como impresión térmica. El elemento firma es la tarjeta principal con
-**borde inferior dentado** (dientes hechos con `linear-gradient`, en `.receipt::after`).
+**Paleta: la del boceto de la clienta.** Morado sobre blanco, texto azul muy oscuro. Se
+cambió desde la paleta original de recibo (marfil y verde) a petición suya.
 
 ```css
---ink:#12241C      /* texto y botones primarios */
---paper:#EDEBE1    /* fondo de la app */
---card:#FBFAF6     /* tarjetas */
---accent:#17694F   /* verde: abonado, ingresos, deuda pagada */
---spend:#9A2B2B    /* rojo: gastos */
---gold:#A9791F     /* ámbar: vencimientos, abonos */
---muted:#66746B    /* texto secundario */
---line:#DAD6C9     /* bordes y divisores */
+--ink:#211C50      /* texto y botones primarios */
+--paper:#F3F2FB    /* fondo de la app */
+--card:#FFFFFF     /* tarjetas */
+--accent:#6153CE   /* morado: progreso, abonos, ingresos */
+--accent-soft:#ECEAFB
+--paid:#12855C     /* verde: SOLO deuda liquidada */
+--paid-soft:#DDF0E8
+--spend:#C0395F    /* gastos */
+--gold:#A9761D     /* vencimientos */
+--muted:#6D6890    /* texto secundario */
+--line:#E4E1F2     /* bordes y divisores */
+--track:#E7E4F6    /* fondo de barras de progreso */
 ```
+
+**El verde está reservado a una sola cosa: la deuda pagada.** Ella lo pidió explícito
+("verde cuando una deuda esté completamente pagada"). Si lo usas para otra cosa, ese estado
+deja de destacar. Todo lo demás que sea positivo va en morado.
+
+Lo que **sí** se conservó de la dirección de recibo: la estructura. Cifras en monoespaciada
+tabular, densidad de líneas, el **borde inferior dentado** de la tarjeta principal (dientes
+con `linear-gradient` en `.receipt::after`) y las filas con divisores punteados. Sin
+gradientes de color, sin sombras tintadas, sin bordes gruesos.
 
 Tipografía: `Avenir Next` (nativa de iOS) para interfaz, `ui-monospace` con
 `font-variant-numeric: tabular-nums` para toda cifra. Nunca uses la mono para prosa ni la
 display para números en columnas.
 
-**Las tarjetas de deuda (`.deuda`) son una decisión negociada, no un descuido.** La clienta
-pidió tarjetas tipo app bancaria; se hicieron tarjetas, porque una tabla de cuatro columnas no
-cabe en un celular, pero **en el lenguaje del recibo**: papel marfil, borde de un píxel, cifras
-monoespaciadas. Sin gradientes, sin sombras de colores, sin morados. Una deuda liquidada se
-tiñe de verde y recibe un sello `PAGADA`.
+**Una tarjeta por deuda**, no una tabla: cuatro columnas no caben en un celular. Cada tarjeta
+lleva ícono, nombre, saldo, barra de progreso, porcentaje y próximo vencimiento. El ícono y el
+nombre son un botón (`.deuda-edit`) que abre la edición; el subtítulo dice "· Editar" para que
+se note. Una deuda liquidada se tiñe de verde y recibe un sello `PAGADA`.
 
 Reglas de UI que ya están aplicadas y deben mantenerse:
 
@@ -279,8 +290,9 @@ Validaciones mínimas antes de dar algo por terminado:
 - No agregues React, Tailwind, ni ninguna dependencia. Es intencional que no haya build.
 - No metas analítica, telemetría ni llamadas de red de ningún tipo.
 - No cambies la clave de `localStorage` sin migración, y nunca borres `jornal.v1.backup`.
-- No reemplaces el diseño por un dashboard genérico con tarjetas de gradiente. La identidad
-  de recibo es deliberada y ya sobrevivió a una petición explícita en contra.
+- No metas gradientes de color, sombras tintadas ni bordes gruesos. La paleta es la del
+  boceto de ella, pero la densidad y el detalle tipográfico son de recibo, y eso se mantiene.
+- No uses el verde (`--paid`) para nada que no sea una deuda liquidada.
 - No sustituyas `confirm()` por diálogos propios solo por estética: `confirm()` es nativo,
   accesible y funciona offline. Cámbialo únicamente si el reemplazo es mejor de verdad.
 - **No asumas ingresos fijos en ninguna proyección: el monto por ingreso varía.** Toda

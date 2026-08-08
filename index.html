@@ -6,7 +6,7 @@
 <title>Jornal</title>
 <meta name="description" content="Control de deudas por abonos, ingresos y gastos.">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#12241C">
+<meta name="theme-color" content="#211C50">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Jornal">
@@ -14,15 +14,21 @@
 <link rel="icon" href="icon-192.png">
 <style>
 :root{
-  --ink:#12241C;
-  --paper:#EDEBE1;
-  --card:#FBFAF6;
-  --accent:#17694F;
-  --accent-soft:#DCE9E2;
-  --spend:#9A2B2B;
-  --gold:#A9791F;
-  --muted:#66746B;
-  --line:#DAD6C9;
+  /* Paleta del boceto de la clienta: morado sobre blanco, texto azul muy
+     oscuro. El verde está reservado para una sola cosa, la deuda liquidada,
+     porque ella lo pidió explícitamente así. */
+  --ink:#211C50;        /* texto y botones primarios */
+  --paper:#F3F2FB;      /* fondo de la app */
+  --card:#FFFFFF;       /* tarjetas */
+  --accent:#6153CE;     /* morado: progreso, abonos, ingresos */
+  --accent-soft:#ECEAFB;
+  --paid:#12855C;       /* verde: solo para deuda pagada */
+  --paid-soft:#DDF0E8;
+  --spend:#C0395F;      /* gastos */
+  --gold:#A9761D;       /* vencimientos */
+  --muted:#6D6890;
+  --line:#E4E1F2;
+  --track:#E7E4F6;      /* fondo de barras de progreso */
   --display:"Avenir Next","Avenir",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
   --r:14px;
@@ -60,7 +66,7 @@ button{cursor:pointer;border:none;background:none}
   border:1px solid var(--line);border-bottom:none;
   border-radius:var(--r) var(--r) 0 0;
   padding:22px 20px 18px;
-  box-shadow:0 1px 0 rgba(18,36,28,.04);
+  box-shadow:0 1px 0 rgba(33,28,80,.04);
 }
 .receipt::after{
   content:"";position:absolute;left:-1px;right:-1px;bottom:-11px;height:12px;
@@ -82,10 +88,10 @@ button{cursor:pointer;border:none;background:none}
 .sub{font-size:13.5px;color:var(--muted);margin:8px 0 0}
 
 /* barra partida: cuánto de la deuda total llevas abonado */
-.split{display:flex;height:9px;margin:20px 0 14px;border-radius:5px;overflow:hidden;background:#E7E4D9}
+.split{display:flex;height:9px;margin:20px 0 14px;border-radius:5px;overflow:hidden;background:var(--track)}
 .split i{display:block;height:100%}
 .split .a{background:var(--accent)}
-.split .b{background:#C9C4B4}
+.split .b{background:#C6C1E4}
 .legend{display:flex;gap:18px;font-size:12.5px;color:var(--muted)}
 .legend span{display:flex;align-items:center;gap:6px}
 .dot{width:8px;height:8px;border-radius:3px;display:inline-block}
@@ -111,13 +117,21 @@ button{cursor:pointer;border:none;background:none}
   background:var(--card);border:1px solid var(--line);border-radius:var(--r);
   padding:16px 18px 14px;
 }
-.deuda.pagada{border-color:var(--accent);background:linear-gradient(0deg,rgba(23,105,79,.05),rgba(23,105,79,.05)),var(--card)}
+.deuda.pagada{border-color:var(--paid);background:var(--paid-soft)}
 .deuda-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:12px}
+/* el ícono y el nombre abren la edición de la deuda */
+.deuda-edit{
+  flex:1;min-width:0;display:flex;gap:11px;align-items:flex-start;
+  padding:0;text-align:left;font:inherit;color:inherit;border-radius:9px;
+}
+.deuda-edit:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.deuda-edit:active{opacity:.6}
+.deuda-v em{font-style:normal;color:var(--accent);font-weight:600}
 .deuda-ico{
   flex:none;width:36px;height:36px;border-radius:10px;background:var(--accent-soft);
   display:grid;place-items:center;font-size:18px;line-height:1;
 }
-.deuda.pagada .deuda-ico{background:var(--accent);color:#F7F6F1}
+.deuda.pagada .deuda-ico{background:var(--paid);color:#FFF}
 .deuda-id{flex:1;min-width:0}
 .deuda-n{display:block;font-size:15.5px;font-weight:600;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .deuda-v{display:block;font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;color:var(--muted)}
@@ -127,8 +141,9 @@ button{cursor:pointer;border:none;background:none}
   font-size:19px;font-weight:600;letter-spacing:-.01em;
 }
 .deuda-saldo small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:1px}
-.deuda.pagada .deuda-saldo b{color:var(--accent)}
-.barra{height:8px;border-radius:4px;background:#E7E4D9;overflow:hidden;margin:0 0 8px}
+.deuda.pagada .deuda-saldo b{color:var(--paid)}
+.deuda.pagada .barra i{background:var(--paid)}
+.barra{height:8px;border-radius:4px;background:var(--track);overflow:hidden;margin:0 0 8px}
 .barra i{display:block;height:100%;background:var(--accent);transition:width .4s cubic-bezier(.2,.8,.2,1)}
 .deuda-pie{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12.5px;color:var(--muted)}
 .deuda-pie b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
@@ -136,12 +151,12 @@ button{cursor:pointer;border:none;background:none}
 .deuda-acts .btn{flex:1;padding:11px 8px;font-size:14px}
 .sello{
   font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:3px 7px;
+  color:var(--paid);border:1px solid var(--paid);border-radius:5px;padding:3px 7px;
 }
 .vence{color:var(--gold);font-weight:600}
 
 /* meta */
-.meter{height:26px;border:1px solid var(--line);border-radius:6px;background:#E7E4D9;position:relative;overflow:hidden;margin:4px 0 10px}
+.meter{height:26px;border:1px solid var(--line);border-radius:6px;background:var(--track);position:relative;overflow:hidden;margin:4px 0 10px}
 .meter i{position:absolute;inset:0 auto 0 0;background:var(--accent);transition:width .4s cubic-bezier(.2,.8,.2,1)}
 .meter b{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -152,7 +167,7 @@ button{cursor:pointer;border:none;background:none}
 /* nota al margen del recibo, no una alarma */
 .nudge{
   margin:26px 0 -8px;padding:13px 15px;
-  border:1px dashed var(--gold);border-radius:11px;background:rgba(169,121,31,.06);
+  border:1px dashed var(--gold);border-radius:11px;background:rgba(169,118,29,.07);
 }
 .nudge[hidden]{display:none}
 .nudge-t{margin:0 0 10px;font-size:13.5px;line-height:1.45;color:var(--ink)}
@@ -164,13 +179,13 @@ button{cursor:pointer;border:none;background:none}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:26px 0 22px}
 .btn{
   border-radius:12px;padding:15px 12px;font-weight:600;font-size:15px;
-  border:1px solid var(--ink);background:var(--ink);color:#F7F6F1;
+  border:1px solid var(--ink);background:var(--ink);color:#FFF;
   transition:transform .12s ease,opacity .12s ease;
 }
 .btn:active{transform:scale(.97)}
 .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line);background:var(--card)}
 .btn.wide{width:100%}
-.btn.danger{background:transparent;border-color:#D9BDBD;color:var(--spend)}
+.btn.danger{background:transparent;border-color:#EEC6D2;color:var(--spend)}
 .btn.acc{background:var(--accent);border-color:var(--accent)}
 .btn[disabled]{opacity:.45;pointer-events:none}
 
@@ -190,8 +205,8 @@ button{cursor:pointer;border:none;background:none}
   font-family:var(--mono);font-size:13px;font-weight:700;
 }
 .tag.j{background:var(--accent-soft);color:var(--accent)}
-.tag.g{background:#F0DEDE;color:var(--spend)}
-.tag.p{background:#F2E6CC;color:var(--gold)}
+.tag.g{background:#F9E4EB;color:var(--spend)}
+.tag.p{background:#F5EAD6;color:var(--gold)}
 .mv .body{flex:1;min-width:0}
 .mv .t{display:block;font-size:15px;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mv .d{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em}
@@ -221,7 +236,7 @@ input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacin
 .pill{
   border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 14px;font-size:14px;
 }
-.pill.on{background:var(--ink);color:#F7F6F1;border-color:var(--ink)}
+.pill.on{background:var(--ink);color:#FFF;border-color:var(--ink)}
 
 /* reparto de un ingreso entre las deudas */
 .rep{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px dashed var(--line)}
@@ -231,12 +246,12 @@ input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacin
 .rep-n{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rep-s{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.03em}
 .rep input{width:112px;flex:none;padding:10px 11px;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
-.rep.lista .rep-ico{background:var(--accent);color:#F7F6F1}
+.rep.lista .rep-ico{background:var(--paid);color:#FFF}
 
 /* ---------- hoja inferior ---------- */
 .sheet{position:fixed;inset:0;z-index:40;display:none}
 .sheet.on{display:block}
-.sheet .scrim{position:absolute;inset:0;background:rgba(18,36,28,.42);animation:fade .2s ease}
+.sheet .scrim{position:absolute;inset:0;background:rgba(33,28,80,.42);animation:fade .2s ease}
 .sheet .panel{
   position:absolute;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;
   background:var(--paper);border-radius:20px 20px 0 0;
@@ -252,7 +267,7 @@ input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacin
 /* ---------- barra inferior ---------- */
 nav{
   position:fixed;left:0;right:0;bottom:0;z-index:30;
-  background:rgba(237,235,225,.92);backdrop-filter:saturate(180%) blur(14px);
+  background:rgba(243,242,251,.92);backdrop-filter:saturate(180%) blur(14px);
   border-top:1px solid var(--line);
   padding:8px 0 calc(env(safe-area-inset-bottom) + 6px);
 }
@@ -266,7 +281,7 @@ nav button.on{color:var(--ink)}
 
 .toast{
   position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translateX(-50%) translateY(8px);
-  background:var(--ink);color:#F7F6F1;padding:11px 18px;border-radius:11px;font-size:14px;
+  background:var(--ink);color:#FFF;padding:11px 18px;border-radius:11px;font-size:14px;
   opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:88vw;text-align:center;
 }
 .toast.on{opacity:1;transform:translateX(-50%)}
@@ -291,7 +306,7 @@ nav button.on{color:var(--ink)}
       <div class="split"><i class="a" id="splitA" style="width:0"></i><i class="b" id="splitB" style="width:100%"></i></div>
       <div class="legend">
         <span><i class="dot" style="background:var(--accent)"></i> Abonado <b id="legA" style="font-family:var(--mono)">$0</b></span>
-        <span><i class="dot" style="background:#C9C4B4"></i> Pendiente <b id="legB" style="font-family:var(--mono)">$0</b></span>
+        <span><i class="dot" style="background:#C6C1E4"></i> Pendiente <b id="legB" style="font-family:var(--mono)">$0</b></span>
       </div>
     </div>
 
@@ -688,9 +703,11 @@ function renderDeudas(){
       : (p.dias === 0 ? 'Vence hoy' : p.dias === 1 ? 'Vence mañana' : 'Vence en ' + p.dias + ' días');
     return '<div class="deuda' + (e.pagada ? ' pagada' : '') + '">'
       + '<div class="deuda-top">'
-      +   '<span class="deuda-ico">' + esc(d.icono || '🧾') + '</span>'
-      +   '<span class="deuda-id"><span class="deuda-n">' + esc(d.nombre) + '</span>'
-      +     '<span class="deuda-v">Día ' + d.diaPago + ' de cada mes</span></span>'
+      +   '<button class="deuda-edit" onclick="openSheet(\'deuda\',\'' + d.id + '\')" aria-label="Editar ' + esc(d.nombre) + '">'
+      +     '<span class="deuda-ico">' + esc(d.icono || '🧾') + '</span>'
+      +     '<span class="deuda-id"><span class="deuda-n">' + esc(d.nombre) + '</span>'
+      +       '<span class="deuda-v">Día ' + d.diaPago + ' de cada mes · <em>Editar</em></span></span>'
+      +   '</button>'
       +   '<span class="deuda-saldo"><b>' + fmt(e.saldo) + '</b><small>' + (e.pagada ? 'pagada' : 'saldo') + '</small></span>'
       + '</div>'
       + '<div class="barra"><i style="width:' + e.pct + '%"></i></div>'
@@ -916,7 +933,8 @@ function openSheet(tipo, id, deudaId){
       <div class="field"><label for="d_dia">Día del mes en que pagas</label>
         <input id="d_dia" type="number" inputmode="numeric" min="1" max="28" value="${m ? m.diaPago : 5}"></div>
       <p class="hint">${m ? 'Ya le has abonado ' + fmt(abonadoDe(m.id)) + '. Si bajas el total por debajo de eso, la deuda queda pagada.' : 'Después registras abonos y el saldo va bajando hasta cero.'}</p>
-      <button class="btn acc wide" onclick="addDeuda()">${m ? 'Guardar cambios' : 'Crear deuda'}</button>`;
+      <button class="btn acc wide" onclick="addDeuda()">${m ? 'Guardar cambios' : 'Crear deuda'}</button>
+      ${m ? '<button class="btn danger wide" style="margin-top:10px" onclick="rmDeuda(\'' + esc(m.id) + '\')">Eliminar esta deuda</button>' : ''}`;
     b.querySelectorAll('#d_icos .pill').forEach(p => p.onclick = () => {
       b.querySelectorAll('#d_icos .pill').forEach(x=>x.classList.remove('on'));
       p.classList.add('on');
@@ -1046,6 +1064,7 @@ function rmDeuda(id){
   if(!confirm(msg)) return;
   S.deudas = S.deudas.filter(x => x.id !== id);
   S.movs = S.movs.filter(m => !(m.tipo==='abono' && m.deudaId===id));
+  closeSheet();   // puede haberse llamado desde la hoja de edición
   render(); toast('Deuda eliminada');
 }
 
