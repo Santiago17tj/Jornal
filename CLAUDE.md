@@ -50,14 +50,17 @@ README.md             instrucciones de despliegue e instalación
 
 Funciona hoy:
 
-- **Inicio**: disponible para gastar, barra abonado/pendiente sobre el total de las deudas,
+- **Inicio**: disponible para gastar, barra partida con los dos bolsillos (para gastar /
+  guardado), total de la deuda pendiente,
   una **tarjeta por deuda** (saldo, barra de progreso, % pagado, próximo vencimiento, botones
   de abonar y ver abonos), aviso de vencimiento cercano o de respaldo, resumen del mes y
   gastos por categoría.
 - **Registrar ingreso**: monto recibido + **reparto en pesos** a cada deuda, con lo que queda
-  libre calculado en vivo. Guardar crea el ingreso y un abono por cada deuda repartida.
+  libre calculado en vivo. Guardar crea el ingreso y una **reserva** por deuda: esa plata se
+  aparta, no se paga todavía.
 - **Registrar gasto**: monto + categoría (pills) + fecha + nota.
-- **Registrar abono** suelto a una deuda, con tope en el saldo.
+- **Registrar abono** a una deuda, con tope en el saldo. Sugiere lo apartado para ella y
+  avisa antes de guardar si el monto excede lo guardado y va a tocar el disponible.
 - **Movimientos**: navegación por mes, totales de entrada/salida, tocar una fila la abre para
   editarla (escribe sobre el mismo `id`), eliminar con confirmación.
 - **Ajustes**: CRUD de deudas (nombre, ícono, total, día de pago), CRUD de categorías.
@@ -68,7 +71,7 @@ Funciona hoy:
 
 ## 4. Modelo de datos
 
-Un único objeto en `localStorage` bajo la clave `jornal.v2`:
+Un único objeto en `localStorage` bajo la clave `jornal.v3`:
 
 ```js
 {
@@ -79,12 +82,12 @@ Un único objeto en `localStorage` bajo la clave `jornal.v2`:
   movs: [
     {
       id: 'string único',
-      tipo: 'jornada' | 'gasto' | 'abono',
+      tipo: 'jornada' | 'reserva' | 'gasto' | 'abono',
       fecha: 'YYYY-MM-DD',
       monto: Number,     // siempre positivo
       cat: 'string',     // solo en 'gasto'
-      deudaId: 'string', // solo en 'abono'
-      origen: 'string',  // solo en 'abono': id del ingreso del que salió, si nació de un reparto
+      deudaId: 'string', // en 'abono' y en 'reserva'
+      origen: 'string',  // solo en 'reserva': id del ingreso del que se apartó
       nota: 'string'     // opcional
     }
   ],
@@ -93,28 +96,62 @@ Un único objeto en `localStorage` bajo la clave `jornal.v2`:
 }
 ```
 
-**Invariante central**:
+### Dos bolsillos separados
+
+Ella separa la plata de las deudas de la plata de vivir. La app modela eso literalmente:
 
 ```
-libre        = Σ jornada.monto − Σ abono.monto − Σ gasto.monto     (totales())
-saldo(deuda) = deuda.total − Σ abono de esa deuda                  (estadoDeuda())
+libre     — lo que puede gastar
+guardado  — lo que ya apartó para las deudas y no debe gastarse
 ```
 
-**Repartir un ingreso a una deuda ES abonarle.** No hay estado intermedio de "apartado": el
-saldo baja en el momento, igual que en el cuaderno de ella. Si alguna vez se quiere separar
-"ya lo tengo guardado" de "ya lo pagué", eso es un tipo de movimiento nuevo, no un campo.
+`totales()` los calcula recorriendo los movimientos **en orden cronológico**:
 
-Un ingreso repartido genera **abonos hijos** con `origen` apuntando a su `id`. Al editar el
-ingreso los hijos se **borran y se rehacen** (más simple que reconciliarlos y no se puede
-desincronizar). Al borrarlo, se van con él.
+| tipo | efecto |
+|---|---|
+| `jornada` | `libre += monto` |
+| `reserva` | `libre −= monto`, `guardado += monto` |
+| `gasto` | `libre −= monto` |
+| `abono` | sale de `guardado`; solo lo que ese bolsillo no cubra se carga a `libre` |
+
+```
+libre + guardado = Σ jornada − Σ gasto − Σ abono     (invariante, verificado en pruebas)
+saldo(deuda)     = deuda.total − Σ abono de esa deuda
+```
+
+**Un abono no pone el disponible en negativo** mientras haya plata guardada. Esa era la queja
+concreta de la clienta y es la razón de ser de este modelo: antes repartir y abonar eran el
+mismo paso y todo abono salía del disponible.
+
+Dentro de un mismo día el orden lo fija el **tipo** (`ORDEN_TIPO`), no el `id`: la plata entra,
+se aparta y solo después se abona. Sin eso, un abono cuyo `id` sea anterior al de su reserva
+encontraría el bolsillo vacío y se cobraría al disponible. Ya pasó al migrar de v2.
+
+`guardado` es **un solo bolsillo** a efectos de cuentas. `guardadoDe(deudaId)` es la etiqueta
+que ella le puso a la plata al repartir el ingreso (`Σ reserva[d] − Σ abono[d]`, con piso en
+cero): sirve para sugerir cuánto abonar y para mostrarlo en la tarjeta, no para el cálculo.
+
+Un ingreso repartido genera **reservas hijas** con `origen` apuntando a su `id`. Al editar el
+ingreso las hijas se **borran y se rehacen** (más simple que reconciliarlas y no se puede
+desincronizar). Al borrarlo, se van con él. Los abonos **no** son hijos de nadie: son un acto
+aparte, del día que ella paga.
 
 ### Migraciones
 
-`jornal.v1` (una sola cuota mensual y un porcentaje por jornada) se migra sola en `load()`
-con `migrarV1()`: la cuota se convierte en una deuda llamada "Crédito", lo que se apartaba de
-cada jornada pasa a ser un abono a esa deuda, y los movimientos `pago` de v1 se descartan
-porque allí apartar y pagar eran dos pasos y aquí es uno solo. **`libre` se conserva exacto.**
-Antes de tocar nada se guarda una copia intacta en `jornal.v1.backup`.
+`load()` encadena solo. Antes de tocar nada guarda una copia intacta del original en
+`jornal.vN.backup`, que **nunca** se borra.
+
+- **`migrarV1()`** — v1 tenía una sola cuota mensual y un porcentaje por jornada. La cuota se
+  vuelve una deuda llamada "Crédito"; lo apartado de cada jornada emite su `reserva` y su
+  `abono` el mismo día, así la deuda queda igual. Los movimientos `pago` de v1 se descartan:
+  allí apartar y pagar eran dos pasos sobre la misma plata y contarlos sería duplicar.
+  Devuelve ya la forma v3, **no** la encadenes con `migrarV2()` o duplicarás las reservas.
+- **`migrarV2()`** — v2 no tenía reservas: repartir creaba el abono directamente. Se le añade
+  una `reserva` gemela a cada abono que traiga `origen`. Los abonos sueltos no llevan gemela,
+  porque en v2 salían del disponible y en v3 siguen saliendo de ahí con el bolsillo vacío.
+
+**Las dos conservan `libre` exacto y no mueven ningún saldo.** Está verificado con datos
+reales de cada versión; si tocas una migración, vuelve a comprobarlo.
 
 Si cambias la forma de los datos, **incrementa la clave** y escribe la migración. Nunca dejes
 que alguien con datos viejos abra la app y vea todo en cero. Agregar un campo *opcional* que
@@ -132,9 +169,10 @@ todo desde el estado y llama `save()` al final. Toda mutación termina llamando 
 
 Funciones principales:
 
-- `load()` / `save()` / `migrarV1()` — persistencia y migración
-- `totales()` — `{recibido, abonado, gastado, libre}`
-- `deuda(id)` `abonadoDe(id)` `estadoDeuda(d)` `totalDeudas()` — la deuda y su progreso
+- `load()` / `save()` / `migrarV1()` / `migrarV2()` — persistencia y migraciones encadenadas
+- `totales()` — `{recibido, reservado, abonado, gastado, libre, guardado}`, los dos bolsillos
+- `deuda(id)` `abonadoDe(id)` `guardadoDe(id)` `estadoDeuda(d)` `totalDeudas()` — la deuda,
+  lo apartado para ella y su progreso
 - `proximoPago(diaPago)` — fecha y días hasta el próximo vencimiento
 - `delMes(ym)` / `diasEntre(a,b)` — filtros y fechas
 - `avisoVence()` / `avisoRespaldo()` / `ocultarAviso()` — los dos avisos de Inicio, por prioridad
@@ -273,8 +311,11 @@ Pages (necesita HTTPS) y abre **en Safari**; Chrome en iOS no instala PWAs.
 Validaciones mínimas antes de dar algo por terminado:
 
 - `node --check` sobre el JS extraído, y la consola del navegador **sin errores**.
-- Los totales cuadran: el invariante de la sección 4, a mano.
-- La migración desde `jornal.v1` conserva `libre` exacto y deja `jornal.v1.backup`.
+- Los totales cuadran: `libre + guardado = Σ jornada − Σ gasto − Σ abono`, y `guardado` nunca
+  queda negativo.
+- **Abonar no baja el disponible** mientras haya plata guardada. Es la razón de ser del modelo.
+- Las migraciones desde `jornal.v1` y `jornal.v2` conservan `libre` exacto, no mueven ningún
+  saldo y dejan su `.backup`.
 - Prueba en ancho de 375px (iPhone SE) y 430px (Pro Max), sin desborde horizontal.
 - Prueba en modo avión que la app abre y guarda.
 - Exporta, borra todo, importa: los datos deben volver idénticos.
@@ -289,7 +330,10 @@ Validaciones mínimas antes de dar algo por terminado:
 
 - No agregues React, Tailwind, ni ninguna dependencia. Es intencional que no haya build.
 - No metas analítica, telemetría ni llamadas de red de ningún tipo.
-- No cambies la clave de `localStorage` sin migración, y nunca borres `jornal.v1.backup`.
+- No cambies la clave de `localStorage` sin migración, y nunca borres los `.backup`.
+- **No vuelvas a juntar los dos bolsillos.** Que un abono salga del disponible y lo deje en
+  negativo fue un rechazo explícito de la clienta: ella separa la plata de las deudas de la
+  plata de vivir, y la app tiene que reflejarlo.
 - No metas gradientes de color, sombras tintadas ni bordes gruesos. La paleta es la del
   boceto de ella, pero la densidad y el detalle tipográfico son de recibo, y eso se mantiene.
 - No uses el verde (`--paid`) para nada que no sea una deuda liquidada.

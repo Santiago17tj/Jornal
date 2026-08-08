@@ -49,15 +49,23 @@ del mes en que la pagas. Por ejemplo: Universidad, $815.000, día 5.
 abonos. Cada abono baja el saldo. Cuando llega a cero, la tarjeta se pone verde y queda
 marcada como pagada.
 
-**Los ingresos se reparten en pesos.** Cuando recibes plata, registras cuánto fue y escribes
-cuánto le abonas a cada deuda: "recibí $200.000, $40.000 a la universidad, $25.000 al
-celular". La app te muestra en vivo cuánto te queda libre. Ese resto es lo que puedes gastar
-sin tocar lo de las deudas.
+**Tu plata está en dos bolsillos separados**, como la manejas de verdad:
 
-**Los gastos salen de lo libre.** El número grande de la pantalla de inicio ya tiene
-descontado todo lo que abonaste.
+- **Disponible para gastar** — lo que puedes usar.
+- **Guardado para deudas** — lo que ya apartaste y no deberías tocar.
 
-También puedes abonar suelto desde la tarjeta de la deuda, sin registrar un ingreso.
+Cuando recibes plata, registras cuánto fue y cuánto apartas para cada deuda: "recibí
+$200.000, $40.000 para la universidad, $25.000 para el celular". Esos $65.000 pasan al
+bolsillo de guardado y te quedan $135.000 disponibles.
+
+Cuando llega la fecha de pago, abres la tarjeta de la deuda y registras el abono. **Esa plata
+sale de lo guardado, no de tu disponible**, así que pagar una deuda nunca te deja el
+disponible en negativo. La app te sugiere justo lo que habías apartado para esa deuda.
+
+Si abonas más de lo que tenías guardado, te avisa antes de guardar cuánto va a salir de tu
+disponible. Nunca te descuadra en silencio.
+
+**Los gastos salen del disponible.**
 
 ## Avisos
 
@@ -77,8 +85,11 @@ No hay que borrar cachés ni reinstalar el ícono.
 ## Corregir algo que registraste mal
 
 En **Movimientos**, toca la fila. Se abre con los datos que tiene y los puedes cambiar.
-Si corriges un ingreso, sus abonos se rehacen con lo que dejes en el reparto. La **×** de
-la derecha elimina; si borras un ingreso, se deshacen también sus abonos.
+Si corriges un ingreso, lo que habías apartado se rehace con lo que dejes en el reparto. La
+**×** de la derecha elimina; si borras un ingreso, se deshace también lo que apartaste.
+
+Para corregir una deuda (nombre, ícono, total o día de pago), toca su ícono o su nombre en la
+tarjeta de Inicio. Ahí mismo está el botón para eliminarla.
 
 ## Respaldo (importante)
 

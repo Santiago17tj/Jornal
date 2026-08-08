@@ -1,6 +1,6 @@
 // Jornal — cache local para que la app abra sin internet.
 // Sube este número en cada publicación: al activarse borra las cachés viejas.
-const CACHE = 'jornal-v7';
+const CACHE = 'jornal-v8';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
