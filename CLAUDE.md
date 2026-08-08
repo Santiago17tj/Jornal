@@ -6,15 +6,15 @@ Este archivo es el brief completo para continuar el desarrollo. Léelo antes de 
 
 ## 1. Qué es
 
-**Jornal** es una web app personal (PWA) para llevar contabilidad de una sola persona: un
-estudiante universitario en Colombia que labora **algunos días** (no tiene salario fijo) y de
-cada jornada aparta un porcentaje para una cuota fija que paga mensualmente. El resto es lo
-que puede gastar.
+**Jornal** es una web app personal (PWA) para una sola persona: una estudiante universitaria
+en Colombia que **paga varias obligaciones por abonos** (universidad, celular, internet, una
+moto, un préstamo) y que **labora algunos días**, sin salario fijo.
 
-El problema real que resuelve no es "registrar gastos". Es que **la plata que entra ya viene
-comprometida en parte**, y sin una herramienta que la separe en el momento de recibirla, se
-gasta. Por eso el apartado no es un cálculo de reporte: es un movimiento contable que ocurre
-al registrar la jornada.
+El problema real que resuelve no es "registrar gastos". Es que ella lleva estas cuentas en un
+cuaderno: cada deuda tiene un total, va abonando de a poco y tiene que restar a mano para
+saber cuánto le falta y si le alcanza. La app hace esa resta sola y conecta las dos mitades
+que el cuaderno no conecta: **de dónde sale la plata** (los ingresos irregulares) y **a dónde
+tiene que ir** (las deudas).
 
 **Idioma de toda la interfaz: español (Colombia). Moneda: COP, sin decimales, formato `es-CO`.**
 
@@ -24,7 +24,7 @@ al registrar la jornada.
 
 | Restricción | Motivo |
 |---|---|
-| Sin backend, sin cuentas, sin red | Decisión explícita del usuario: los datos viven solo en su teléfono |
+| Sin backend, sin cuentas, sin red | Decisión explícita: los datos viven solo en su teléfono |
 | Sin dependencias ni build step | Debe funcionar abriendo `index.html`; no hay npm, ni bundler, ni CDN |
 | Todo en un solo archivo (`index.html`) | Facilita el despliegue y la lectura completa del código |
 | Debe funcionar offline | Service worker cachea todo; la app abre en modo avión |
@@ -32,82 +32,93 @@ al registrar la jornada.
 | Fuentes del sistema, nunca webfonts | Sin internet no cargarían |
 
 Si una funcionalidad nueva exige romper alguna de estas, **propónlo antes de implementarlo**,
-explicando el costo.
+explicando el costo. Ya pasó una vez: la clienta pidió respaldo en la nube y notificaciones
+push, y se decidió mantener todo local (ver sección 9).
 
 ---
 
 ## 3. Estado actual — qué ya está construido y funcionando
 
 ```
-index.html            app completa (HTML + CSS + JS vanilla, ~330 líneas de JS)
+index.html            app completa (HTML + CSS + JS vanilla)
 manifest.webmanifest  metadatos PWA
 sw.js                 service worker, estrategia network-first con fallback a caché
+vercel.json           headers: no cachear sw.js ni index.html en el CDN
 icon-192.png icon-512.png icon-maskable.png apple-touch-icon.png
 README.md             instrucciones de despliegue e instalación
 ```
 
 Funciona hoy:
 
-- **Inicio**: saldo disponible, barra partida apartado/libre, progreso hacia la cuota
-  del crédito,
-  días para el pago, estimación de jornadas faltantes, resumen del mes, gastos por categoría.
-- **Registrar jornada**: monto variable + porcentaje (precargado del ajuste, editable por
-  jornada) + fecha + nota. Muestra en vivo cuánto se aparta y cuánto queda.
+- **Inicio**: disponible para gastar, barra abonado/pendiente sobre el total de las deudas,
+  una **tarjeta por deuda** (saldo, barra de progreso, % pagado, próximo vencimiento, botones
+  de abonar y ver abonos), aviso de vencimiento cercano o de respaldo, resumen del mes y
+  gastos por categoría.
+- **Registrar ingreso**: monto recibido + **reparto en pesos** a cada deuda, con lo que queda
+  libre calculado en vivo. Guardar crea el ingreso y un abono por cada deuda repartida.
 - **Registrar gasto**: monto + categoría (pills) + fecha + nota.
-- **Registrar pago de la cuota**: descuenta del acumulado y reinicia el ciclo.
-- **Movimientos**: navegación por mes, totales de entrada/salida, tocar una fila la abre
-  para editarla (escribe sobre el mismo `id`), eliminar con confirmación, e historial de
-  cuotas pagadas con lo apartado y las jornadas de cada ciclo.
-- **Ajustes**: porcentaje, valor de la cuota, día de pago, CRUD de categorías.
-- **Respaldo**: exportar/importar JSON, estado de la última copia, recordatorio en Inicio
-  a los 15 días sin respaldar, borrar todo con doble confirmación.
+- **Registrar abono** suelto a una deuda, con tope en el saldo.
+- **Movimientos**: navegación por mes, totales de entrada/salida, tocar una fila la abre para
+  editarla (escribe sobre el mismo `id`), eliminar con confirmación.
+- **Ajustes**: CRUD de deudas (nombre, ícono, total, día de pago), CRUD de categorías.
+- **Respaldo**: exportar/importar JSON, estado de la última copia, recordatorio a los 15 días
+  sin respaldar, borrar todo con doble confirmación.
 
 ---
 
 ## 4. Modelo de datos
 
-Un único objeto en `localStorage` bajo la clave `jornal.v1`:
+Un único objeto en `localStorage` bajo la clave `jornal.v2`:
 
 ```js
 {
-  pct: 30,          // porcentaje por defecto a apartar de cada jornada
-  cuota: 0,         // valor de la cuota del ciclo
-  diaPago: 5,       // día del mes en que paga (se limita a 1..28)
   cats: ['Transporte', 'Comida', ...],
-  ultimoRespaldo: null,  // 'YYYY-MM-DD' de la última copia descargada o restaurada
-  avisoOculto: null,     // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
+  deudas: [
+    { id, nombre, icono, total: Number, diaPago: Number }   // diaPago se limita a 1..28
+  ],
   movs: [
     {
       id: 'string único',
-      tipo: 'jornada' | 'gasto' | 'pago',
+      tipo: 'jornada' | 'gasto' | 'abono',
       fecha: 'YYYY-MM-DD',
-      monto: Number,   // siempre positivo
-      aparta: Number,  // solo en 'jornada'; 0 en el resto
-      cat: 'string',   // solo en 'gasto'
-      cuotaObjetivo: Number, // solo en 'pago', opcional: cuánto era la cuota ese día
-      nota: 'string'   // opcional
+      monto: Number,     // siempre positivo
+      cat: 'string',     // solo en 'gasto'
+      deudaId: 'string', // solo en 'abono'
+      origen: 'string',  // solo en 'abono': id del ingreso del que salió, si nació de un reparto
+      nota: 'string'     // opcional
     }
-  ]
+  ],
+  ultimoRespaldo: null,  // 'YYYY-MM-DD' de la última copia descargada o restaurada
+  avisoOculto: null      // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
 }
 ```
 
-**Invariante central** (función `totales()`):
+**Invariante central**:
 
 ```
-libre    = Σ(jornada.monto − jornada.aparta) − Σ(gasto.monto)
-apartado = Σ(jornada.aparta) − Σ(pago.monto)
+libre        = Σ jornada.monto − Σ abono.monto − Σ gasto.monto     (totales())
+saldo(deuda) = deuda.total − Σ abono de esa deuda                  (estadoDeuda())
 ```
 
-El porcentaje de una jornada **no se guarda**: se deduce con `pctDe()` como
-`aparta / monto`. Por eso editar una jornada conserva el porcentaje que tenía esa jornada y
-no el de Ajustes. No agregues un campo `pct` al movimiento: obligaría a migrar la clave para
-guardar información que ya está en los datos.
+**Repartir un ingreso a una deuda ES abonarle.** No hay estado intermedio de "apartado": el
+saldo baja en el momento, igual que en el cuaderno de ella. Si alguna vez se quiere separar
+"ya lo tengo guardado" de "ya lo pagué", eso es un tipo de movimiento nuevo, no un campo.
 
-Si cambias la forma de los datos, **incrementa la clave** (`jornal.v2`) y escribe una
-migración que lea `jornal.v1` y lo convierta. Nunca dejes que un usuario con datos viejos
-abra la app y vea todo en cero. Agregar un campo *opcional* en la raíz (como
-`ultimoRespaldo`) no cuenta: `load()` hace `Object.assign({}, DEFAULTS, guardado)`, así que
-un archivo viejo lo recibe con su valor por defecto. Cambiar la forma de `movs` sí cuenta.
+Un ingreso repartido genera **abonos hijos** con `origen` apuntando a su `id`. Al editar el
+ingreso los hijos se **borran y se rehacen** (más simple que reconciliarlos y no se puede
+desincronizar). Al borrarlo, se van con él.
+
+### Migraciones
+
+`jornal.v1` (una sola cuota mensual y un porcentaje por jornada) se migra sola en `load()`
+con `migrarV1()`: la cuota se convierte en una deuda llamada "Crédito", lo que se apartaba de
+cada jornada pasa a ser un abono a esa deuda, y los movimientos `pago` de v1 se descartan
+porque allí apartar y pagar eran dos pasos y aquí es uno solo. **`libre` se conserva exacto.**
+Antes de tocar nada se guarda una copia intacta en `jornal.v1.backup`.
+
+Si cambias la forma de los datos, **incrementa la clave** y escribe la migración. Nunca dejes
+que alguien con datos viejos abra la app y vea todo en cero. Agregar un campo *opcional* que
+degrada bien no cuenta: `load()` hace `Object.assign({}, DEFAULTS, guardado)`.
 
 `load()` y `save()` están envueltos en `try/catch` con fallback a una variable en memoria,
 porque algunos entornos de previsualización bloquean `localStorage`. Mantén ese patrón.
@@ -121,21 +132,19 @@ todo desde el estado y llama `save()` al final. Toda mutación termina llamando 
 
 Funciones principales:
 
-- `load()` / `save()` — persistencia tolerante a fallos
-- `totales()` — el invariante de arriba
-- `proximoPago()` — fecha y días restantes hasta el día de pago
-- `delMes(ym)` — filtra movimientos por `YYYY-MM`
-- `diasEntre(isoA, isoB)` — días entre dos fechas `YYYY-MM-DD`
-- `avisoRespaldo()` / `ocultarAviso()` — recordatorio de copia de seguridad
-- `ciclos()` — deriva los ciclos cerrados (uno por pago) desde `movs`
-- `render()` — pinta inicio y dispara `renderMovs()`, `renderCiclos()` y `renderCats()`
-- `openSheet(tipo, id?)` / `closeSheet()` — hojas inferiores (jornada / gasto / pago). Con
-  `id` la hoja entra en modo edición: precarga los datos y guarda sobre ese `id`
-- `editMov(id)` — abre la hoja de edición desde una fila de Movimientos
-- `pctDe(mov)` — deduce el porcentaje de una jornada a partir de `aparta/monto`
+- `load()` / `save()` / `migrarV1()` — persistencia y migración
+- `totales()` — `{recibido, abonado, gastado, libre}`
+- `deuda(id)` `abonadoDe(id)` `estadoDeuda(d)` `totalDeudas()` — la deuda y su progreso
+- `proximoPago(diaPago)` — fecha y días hasta el próximo vencimiento
+- `delMes(ym)` / `diasEntre(a,b)` — filtros y fechas
+- `avisoVence()` / `avisoRespaldo()` / `ocultarAviso()` — los dos avisos de Inicio, por prioridad
+- `render()` — pinta inicio y dispara `renderDeudas()`, `renderMovs()`, `renderDeudaEdit()`,
+  `renderCats()`
+- `openSheet(tipo, id?, deudaId?)` / `closeSheet()` / `foco(sel)` — hojas inferiores. Tipos:
+  `jornada`, `gasto`, `abono`, `deuda`, `historial`. Con `id` la hoja edita en vez de crear
+- `repartosDe(jornadaId)` — abonos hijos de un ingreso
 - `guardarMov(datos)` — crea o sobrescribe según `editando`; devuelve `true` si es nuevo
-- `addJornada()` `addGasto()` `addPago()` `delMov()` — mutaciones
-- `saveSettings()` `addCat()` `rmCat()` — ajustes
+- `addJornada()` `addGasto()` `addAbono()` `addDeuda()` `delMov()` `rmDeuda()` — mutaciones
 - `exportData()` `importData()` `wipe()` — respaldo
 - `go(vista)` — navegación entre las tres vistas
 - `fmt()` `uid()` `hoy()` `fechaCorta()` `esc()` `toast()` — utilidades
@@ -143,22 +152,24 @@ Funciones principales:
 Todo texto que venga del usuario pasa por `esc()` antes de entrar al DOM vía `innerHTML`.
 Mantenlo: es la única defensa contra inyección en esta app.
 
+`foco()` comprueba que el campo siga en el DOM antes de enfocarlo: si la hoja se cierra antes
+de los 260 ms de la animación, el cuerpo ya fue reemplazado. No vuelvas al `setTimeout` pelado.
+
 ---
 
 ## 6. Sistema de diseño — respétalo
 
 Dirección visual: **recibo de caja**. Papel marfil, tinta verde muy oscura, cifras en
 monoespaciada tabular como impresión térmica. El elemento firma es la tarjeta principal con
-**borde inferior dentado** (dientes hechos con `linear-gradient`, en `.receipt::after`) y la
-**barra partida** que muestra visualmente cómo cada ingreso se rompe en dos.
+**borde inferior dentado** (dientes hechos con `linear-gradient`, en `.receipt::after`).
 
 ```css
 --ink:#12241C      /* texto y botones primarios */
 --paper:#EDEBE1    /* fondo de la app */
 --card:#FBFAF6     /* tarjetas */
---accent:#17694F   /* verde: lo apartado, ingresos */
+--accent:#17694F   /* verde: abonado, ingresos, deuda pagada */
 --spend:#9A2B2B    /* rojo: gastos */
---gold:#A9791F     /* ámbar: metas, pagos */
+--gold:#A9791F     /* ámbar: vencimientos, abonos */
 --muted:#66746B    /* texto secundario */
 --line:#DAD6C9     /* bordes y divisores */
 ```
@@ -166,6 +177,12 @@ monoespaciada tabular como impresión térmica. El elemento firma es la tarjeta 
 Tipografía: `Avenir Next` (nativa de iOS) para interfaz, `ui-monospace` con
 `font-variant-numeric: tabular-nums` para toda cifra. Nunca uses la mono para prosa ni la
 display para números en columnas.
+
+**Las tarjetas de deuda (`.deuda`) son una decisión negociada, no un descuido.** La clienta
+pidió tarjetas tipo app bancaria; se hicieron tarjetas, porque una tabla de cuatro columnas no
+cabe en un celular, pero **en el lenguaje del recibo**: papel marfil, borde de un píxel, cifras
+monoespaciadas. Sin gradientes, sin sombras de colores, sin morados. Una deuda liquidada se
+tiñe de verde y recibe un sello `PAGADA`.
 
 Reglas de UI que ya están aplicadas y deben mantenerse:
 
@@ -176,7 +193,7 @@ Reglas de UI que ya están aplicadas y deben mantenerse:
 - Foco de teclado visible (`outline` en `:focus`).
 
 Copy: voz directa, en segunda persona, sentence case. Los botones dicen lo que hacen
-("Guardar jornada", no "Enviar"). Los estados vacíos invitan a actuar, no se disculpan.
+("Guardar ingreso", no "Enviar"). Los estados vacíos invitan a actuar, no se disculpan.
 
 ---
 
@@ -184,73 +201,62 @@ Copy: voz directa, en segunda persona, sentence case. Los botones dicen lo que h
 
 Trabaja en orden. Cada punto trae su criterio de aceptación.
 
-### P1 — Lo que le falta para ser confiable
+### Hecho
 
-1. ~~**Editar un movimiento.**~~ **Hecho.** Tocar una fila abre la hoja con los datos
-   precargados y guarda sobre el mismo `id`. El porcentaje de la jornada se deduce con
-   `pctDe()`, así que cambiar el monto recalcula `aparta` con el porcentaje que tenía esa
-   jornada, no con el de Ajustes. Verificado: los totales cuadran y no se duplican
-   movimientos.
+1. ~~Editar un movimiento.~~ Tocar una fila abre la hoja precargada y guarda sobre el mismo `id`.
+2. ~~Recordatorio de respaldo.~~ A los 15 días (`DIAS_RESPALDO`); "Ahora no" pospone 7
+   (`DIAS_SNOOZE`), no apaga el aviso. Exportar o importar lo reinician.
+3. ~~Historial de ciclos.~~ Reemplazado por el modelo de deudas: cada deuda tiene su propio
+   historial de abonos en la hoja `historial`.
+4. ~~Multi-deuda.~~ N obligaciones independientes con total, día de pago y abonos.
+5. ~~Aviso de vencimiento.~~ A `DIAS_VENCE` días, con acción directa a abonar.
 
-2. ~~**Recordatorio de respaldo.**~~ **Hecho.** `avisoRespaldo()` muestra una nota discreta
-   en Inicio pasados 15 días (`DIAS_RESPALDO`). Si nunca respaldó, cuenta desde el
-   movimiento más viejo; con la app vacía no aparece. "Ahora no" lo pospone 7 días
-   (`DIAS_SNOOZE`), no lo apaga para siempre: el riesgo no desaparece porque lo descarten.
-   Exportar o importar ponen `ultimoRespaldo = hoy()` y limpian `avisoOculto`. Ajustes →
-   Respaldo muestra cuándo fue la última copia.
+### Pendiente
 
-3. ~~**Historial de ciclos.**~~ **Hecho, con una desviación deliberada del plan.** El brief
-   pedía guardar un snapshot del ciclo al pagar; `ciclos()` lo **deriva** de los movimientos
-   igual que `totales()`. Razón: como P1-1 permite editar y borrar movimientos, un snapshot
-   guardado quedaría mintiendo apenas se corrija una jornada vieja. Derivado siempre cuadra.
-   Lo único que sí se guarda es `cuotaObjetivo` en el movimiento de pago, porque el valor de
-   la cuota en Ajustes puede cambiar y ese dato no se reconstruye. Es un campo opcional: los
-   pagos viejos caen a `monto` y no hace falta migrar.
-   Cada ciclo lleva `arrastre` (lo que sobró del anterior) para que la suma cuadre con
-   `totales().apartado`.
+6. **Calendario de vencimientos.** Vista de mes con los días marcados y qué vence en cada uno.
+   *Listo cuando:* con tres deudas en días distintos, se ven los tres en el mes correcto.
 
-### P2 — Lo que lo hace más útil
-
-4. **Gasto recurrente rápido.** Los gastos se repiten (pasajes, almuerzo). Botón de
-   "repetir último gasto de esta categoría" o accesos de un toque a los tres gastos más
-   frecuentes del mes.
-
-5. **Alerta de ritmo.** Si faltan N días para el pago y el acumulado va por debajo del
-   ritmo necesario, muéstralo en Inicio con el mensaje concreto: cuánto tendría que apartar
-   por jornada restante. Sin alarmismo, sin colores rojos parpadeantes.
-
-6. **Exportar a CSV** además del JSON, para abrirlo en Excel o Sheets.
-
-7. **Gráfica simple de los últimos 6 meses** (recibido vs gastado). SVG dibujado a mano,
+7. **Gráfica de los últimos 6 meses** (recibido vs abonado vs gastado). SVG dibujado a mano,
    sin librería. Barras, no líneas: son pocos datos y discretos.
 
-### P3 — Solo si lo pide
+8. **Exportar a CSV** además del JSON, para abrirlo en Excel o Sheets.
 
-8. Modo oscuro con `prefers-color-scheme`.
-9. Bloqueo con código de 4 dígitos al abrir (no es seguridad real, es privacidad de pantalla).
-10. Migración opcional a Supabase para sincronizar iPhone + Android + PC. Solo hay que
-    reescribir `load()` y `save()`; el resto de la app no se entera. **No lo hagas sin que
-    el usuario lo pida explícitamente** — decidió local a propósito.
+9. **Gasto recurrente rápido.** Accesos de un toque a los tres gastos más frecuentes del mes.
+
+10. **Alerta de ritmo.** Si faltan N días para un vencimiento y no hay con qué cubrirlo,
+    decirlo concreto: cuánto tendría que entrar por ingreso restante. Sin alarmismo.
+
+11. **Reordenar y archivar deudas.** Las pagadas se van al fondo o a un archivo, para que la
+    pantalla de Inicio no crezca sin control.
+
+12. Modo oscuro con `prefers-color-scheme`.
+
+13. Bloqueo con código de 4 dígitos al abrir (no es seguridad real, es privacidad de pantalla).
+
+14. Migración opcional a Supabase para sincronizar y habilitar notificaciones push reales.
+    Solo hay que reescribir `load()` y `save()`; el resto de la app no se entera.
+    **No lo hagas sin que lo pidan explícitamente** — ver sección 9.
 
 ---
 
 ## 8. Cómo probar
 
 ```bash
-python3 -m http.server 8000    # el service worker no funciona con file://
+python -m http.server 8000    # el service worker no funciona con file://
 ```
 
-Luego `http://localhost:8000`. Para probar en el iPhone real, despliega en GitHub Pages
-o Netlify Drop (necesita HTTPS) y abre **en Safari**; Chrome en iOS no instala PWAs.
+Luego `http://localhost:8000`. Para probar en el iPhone real, despliega en Vercel o GitHub
+Pages (necesita HTTPS) y abre **en Safari**; Chrome en iOS no instala PWAs.
 
 Validaciones mínimas antes de dar algo por terminado:
 
-- `node --check` sobre el JS extraído (o revísalo en consola del navegador sin errores).
-- Los totales cuadran: registra 2 jornadas, 1 gasto y 1 pago, y verifica a mano el invariante
-  de la sección 4.
-- Prueba en ancho de 375px (iPhone SE) y 430px (Pro Max).
+- `node --check` sobre el JS extraído, y la consola del navegador **sin errores**.
+- Los totales cuadran: el invariante de la sección 4, a mano.
+- La migración desde `jornal.v1` conserva `libre` exacto y deja `jornal.v1.backup`.
+- Prueba en ancho de 375px (iPhone SE) y 430px (Pro Max), sin desborde horizontal.
 - Prueba en modo avión que la app abre y guarda.
 - Exporta, borra todo, importa: los datos deben volver idénticos.
+- Abre y cierra hojas de inmediato: no debe reventar ningún foco diferido.
 
 ---
 
@@ -258,10 +264,15 @@ Validaciones mínimas antes de dar algo por terminado:
 
 - No agregues React, Tailwind, ni ninguna dependencia. Es intencional que no haya build.
 - No metas analítica, telemetría ni llamadas de red de ningún tipo.
-- No cambies la clave de `localStorage` sin migración.
+- No cambies la clave de `localStorage` sin migración, y nunca borres `jornal.v1.backup`.
 - No reemplaces el diseño por un dashboard genérico con tarjetas de gradiente. La identidad
-  de recibo es deliberada.
+  de recibo es deliberada y ya sobrevivió a una petición explícita en contra.
 - No sustituyas `confirm()` por diálogos propios solo por estética: `confirm()` es nativo,
   accesible y funciona offline. Cámbialo únicamente si el reemplazo es mejor de verdad.
-- No asumas ingresos fijos en ninguna proyección: **el monto por jornada varía**. Toda
-  estimación debe usar promedios de las jornadas reales, nunca un valor supuesto.
+- **No asumas ingresos fijos en ninguna proyección: el monto por ingreso varía.** Toda
+  estimación debe usar promedios de los ingresos reales, nunca un valor supuesto.
+- No vuelvas a meter porcentajes en el reparto. Ella reparte **montos en pesos**, no
+  porcentajes: "hoy $40.000 a la universidad y me quedan $30.000". Se probó con porcentaje y
+  se descartó a petición suya.
+- No prometas notificaciones push. Una PWA en iOS solo las tiene desde 16.4 y **necesita un
+  servidor de push**; sin backend lo máximo es avisar cuando ella abre la app.

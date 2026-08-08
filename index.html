@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Jornal</title>
-<meta name="description" content="Control de jornadas, apartado automático y gastos.">
+<meta name="description" content="Control de deudas por abonos, ingresos y gastos.">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#12241C">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -81,7 +81,7 @@ button{cursor:pointer;border:none;background:none}
 .big.neg{color:var(--spend)}
 .sub{font-size:13.5px;color:var(--muted);margin:8px 0 0}
 
-/* barra partida: lo que se aparta / lo que queda */
+/* barra partida: cuánto de la deuda total llevas abonado */
 .split{display:flex;height:9px;margin:20px 0 14px;border-radius:5px;overflow:hidden;background:#E7E4D9}
 .split i{display:block;height:100%}
 .split .a{background:var(--accent)}
@@ -104,6 +104,42 @@ button{cursor:pointer;border:none;background:none}
 .v.spend{color:var(--spend)}
 .v.gold{color:var(--gold)}
 
+/* ---------- tarjeta de deuda ---------- */
+/* una por obligación, en el lenguaje del recibo: papel, tinta verde y cifras
+   monoespaciadas. No es una tarjeta de banco con gradiente. */
+.deuda{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px 18px 14px;
+}
+.deuda.pagada{border-color:var(--accent);background:linear-gradient(0deg,rgba(23,105,79,.05),rgba(23,105,79,.05)),var(--card)}
+.deuda-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:12px}
+.deuda-ico{
+  flex:none;width:36px;height:36px;border-radius:10px;background:var(--accent-soft);
+  display:grid;place-items:center;font-size:18px;line-height:1;
+}
+.deuda.pagada .deuda-ico{background:var(--accent);color:#F7F6F1}
+.deuda-id{flex:1;min-width:0}
+.deuda-n{display:block;font-size:15.5px;font-weight:600;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deuda-v{display:block;font-family:var(--mono);font-size:11.5px;letter-spacing:.03em;color:var(--muted)}
+.deuda-saldo{text-align:right;flex:none}
+.deuda-saldo b{
+  display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:19px;font-weight:600;letter-spacing:-.01em;
+}
+.deuda-saldo small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:1px}
+.deuda.pagada .deuda-saldo b{color:var(--accent)}
+.barra{height:8px;border-radius:4px;background:#E7E4D9;overflow:hidden;margin:0 0 8px}
+.barra i{display:block;height:100%;background:var(--accent);transition:width .4s cubic-bezier(.2,.8,.2,1)}
+.deuda-pie{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12.5px;color:var(--muted)}
+.deuda-pie b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+.deuda-acts{display:flex;gap:8px;margin-top:13px}
+.deuda-acts .btn{flex:1;padding:11px 8px;font-size:14px}
+.sello{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:3px 7px;
+}
+.vence{color:var(--gold);font-weight:600}
+
 /* meta */
 .meter{height:26px;border:1px solid var(--line);border-radius:6px;background:#E7E4D9;position:relative;overflow:hidden;margin:4px 0 10px}
 .meter i{position:absolute;inset:0 auto 0 0;background:var(--accent);transition:width .4s cubic-bezier(.2,.8,.2,1)}
@@ -112,7 +148,7 @@ button{cursor:pointer;border:none;background:none}
   font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--ink);mix-blend-mode:luminosity;
 }
 
-/* ---------- aviso de respaldo ---------- */
+/* ---------- aviso ---------- */
 /* nota al margen del recibo, no una alarma */
 .nudge{
   margin:26px 0 -8px;padding:13px 15px;
@@ -136,6 +172,7 @@ button{cursor:pointer;border:none;background:none}
 .btn.wide{width:100%}
 .btn.danger{background:transparent;border-color:#D9BDBD;color:var(--spend)}
 .btn.acc{background:var(--accent);border-color:var(--accent)}
+.btn[disabled]{opacity:.45;pointer-events:none}
 
 /* ---------- movimientos ---------- */
 .mv{display:flex;gap:0;align-items:flex-start;border-bottom:1px dashed var(--line)}
@@ -162,18 +199,6 @@ button{cursor:pointer;border:none;background:none}
 .mv .amt small{display:block;font-size:11px;font-weight:500;color:var(--accent);letter-spacing:.02em}
 .mv .del{padding:17px 0 17px 10px;color:var(--muted);font-size:18px;line-height:1;flex:none}
 
-/* ---------- ciclos cerrados ---------- */
-/* colilla de recibo: encabezado, lo que apartaste, y el saldo que quedó */
-.ciclo{padding:14px 0;border-bottom:1px dashed var(--line)}
-.ciclo:first-child{padding-top:2px}
-.ciclo:last-child{border-bottom:none;padding-bottom:2px}
-.ciclo-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:5px}
-.ciclo-n{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.ciclo-m{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:17px;font-weight:600;color:var(--gold)}
-.ciclo-d{margin:0;font-size:13.5px;color:var(--ink);line-height:1.45}
-.ciclo-s{margin:3px 0 0;font-size:12.5px;color:var(--muted);line-height:1.4}
-.ciclo-s.corto{color:var(--spend)}
-
 .empty{text-align:center;padding:44px 20px;color:var(--muted)}
 .empty p{margin:0 0 4px;font-size:15px;color:var(--ink)}
 .empty small{font-size:13.5px}
@@ -198,10 +223,18 @@ input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacin
 }
 .pill.on{background:var(--ink);color:#F7F6F1;border-color:var(--ink)}
 
+/* reparto de un ingreso entre las deudas */
+.rep{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.rep:last-of-type{border-bottom:none}
+.rep-ico{flex:none;width:32px;height:32px;border-radius:9px;background:var(--accent-soft);display:grid;place-items:center;font-size:16px;line-height:1}
+.rep-id{flex:1;min-width:0}
+.rep-n{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rep-s{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.03em}
+.rep input{width:112px;flex:none;padding:10px 11px;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
+.rep.lista .rep-ico{background:var(--accent);color:#F7F6F1}
+
 /* ---------- hoja inferior ---------- */
-.sheet{
-  position:fixed;inset:0;z-index:40;display:none;
-}
+.sheet{position:fixed;inset:0;z-index:40;display:none}
 .sheet.on{display:block}
 .sheet .scrim{position:absolute;inset:0;background:rgba(18,36,28,.42);animation:fade .2s ease}
 .sheet .panel{
@@ -254,45 +287,38 @@ nav button.on{color:var(--ink)}
     <div class="receipt">
       <p class="eyebrow">Disponible para gastar</p>
       <p class="big" id="disponible">$0</p>
-      <p class="sub" id="dispSub">Registra tu primera jornada para empezar.</p>
+      <p class="sub" id="dispSub">Registra lo que recibas para empezar.</p>
       <div class="split"><i class="a" id="splitA" style="width:0"></i><i class="b" id="splitB" style="width:100%"></i></div>
       <div class="legend">
-        <span><i class="dot" style="background:var(--accent)"></i> Apartado <b id="legA" style="font-family:var(--mono)">$0</b></span>
-        <span><i class="dot" style="background:#C9C4B4"></i> Libre <b id="legB" style="font-family:var(--mono)">$0</b></span>
+        <span><i class="dot" style="background:var(--accent)"></i> Abonado <b id="legA" style="font-family:var(--mono)">$0</b></span>
+        <span><i class="dot" style="background:#C9C4B4"></i> Pendiente <b id="legB" style="font-family:var(--mono)">$0</b></span>
       </div>
     </div>
 
     <div class="nudge" id="nudge" hidden>
       <p class="nudge-t" id="nudgeText"></p>
       <div class="nudge-acts">
-        <button class="nudge-go" onclick="exportData()">Descargar copia</button>
+        <button class="nudge-go" id="nudgeGo" onclick="exportData()">Descargar copia</button>
         <button class="nudge-no" onclick="ocultarAviso()">Ahora no</button>
       </div>
     </div>
 
     <div class="actions">
-      <button class="btn acc" onclick="openSheet('jornada')">Registrar jornada</button>
+      <button class="btn acc" onclick="openSheet('jornada')">Registrar ingreso</button>
       <button class="btn ghost" onclick="openSheet('gasto')">Registrar gasto</button>
     </div>
 
-    <div class="stack">
-      <div class="card">
-        <h3>Cuota del crédito</h3>
-        <div class="meter"><i id="metaFill" style="width:0%"></i><b id="metaPct">0%</b></div>
-        <div class="row"><span class="k">Acumulado</span><span class="v acc" id="mAcum">$0</span></div>
-        <div class="row"><span class="k">Falta</span><span class="v gold" id="mFalta">$0</span></div>
-        <div class="row"><span class="k" id="mDiasK">Días para el pago</span><span class="v" id="mDias">—</span></div>
-        <div class="row"><span class="k">Jornadas estimadas para completar</span><span class="v" id="mJor">—</span></div>
-        <button class="btn ghost wide" style="margin-top:14px" onclick="openSheet('pago')">Registrar pago de la cuota</button>
-      </div>
+    <h3 class="eyebrow" style="margin:0 0 10px" id="deudasTitulo">Tus deudas</h3>
+    <div class="stack" id="deudaList"></div>
 
-      <div class="card">
+    <div class="stack" style="margin-top:12px">
+      <div class="card" id="mesCard">
         <h3 id="mesTitulo">Este mes</h3>
-        <div class="row"><span class="k">Jornadas trabajadas</span><span class="v" id="sJor">0</span></div>
+        <div class="row"><span class="k">Veces que recibiste</span><span class="v" id="sJor">0</span></div>
         <div class="row"><span class="k">Recibido</span><span class="v" id="sRecibido">$0</span></div>
-        <div class="row"><span class="k">Apartado</span><span class="v acc" id="sApartado">$0</span></div>
+        <div class="row"><span class="k">Abonado a deudas</span><span class="v acc" id="sApartado">$0</span></div>
         <div class="row"><span class="k">Gastado</span><span class="v spend" id="sGastado">$0</span></div>
-        <div class="row"><span class="k">Promedio por jornada</span><span class="v" id="sProm">$0</span></div>
+        <div class="row"><span class="k">Promedio por ingreso</span><span class="v" id="sProm">$0</span></div>
       </div>
 
       <div class="card" id="cardCats" style="display:none">
@@ -320,30 +346,15 @@ nav button.on{color:var(--ink)}
       <h3>Movimientos</h3>
       <div id="movList"></div>
     </div>
-    <div class="card" style="margin-top:12px">
-      <h3 id="ciclosTitulo">Cuotas pagadas</h3>
-      <div id="cicloList"></div>
-    </div>
   </section>
 
   <!-- ============ AJUSTES ============ -->
   <section class="view" id="v-ajustes">
     <div class="card">
-      <h3>Regla de apartado</h3>
-      <div class="field">
-        <label for="setPct">Porcentaje que aparto de cada jornada</label>
-        <input id="setPct" type="number" inputmode="decimal" min="0" max="100" step="1">
-      </div>
-      <p class="hint">Cada vez que registres una jornada, esta parte se descuenta sola del disponible y se suma al acumulado de la cuota. Puedes cambiarla en una jornada puntual sin tocar este valor.</p>
-      <div class="field">
-        <label for="setCuota">Valor de la cuota del crédito</label>
-        <input id="setCuota" type="number" inputmode="decimal" min="0" step="1000">
-      </div>
-      <div class="field">
-        <label for="setDia">Día del mes en que pagas</label>
-        <input id="setDia" type="number" inputmode="numeric" min="1" max="31">
-      </div>
-      <button class="btn wide" onclick="saveSettings()">Guardar cambios</button>
+      <h3>Deudas</h3>
+      <p class="hint" style="margin-top:0">Cada obligación es independiente: tiene su total, su día de pago y sus abonos. Cuando el saldo llega a cero, queda marcada como pagada.</p>
+      <div id="deudaEdit"></div>
+      <button class="btn ghost wide" style="margin-top:12px" onclick="openSheet('deuda')">Agregar una deuda</button>
     </div>
 
     <div class="card" style="margin-top:12px">
@@ -367,7 +378,7 @@ nav button.on{color:var(--ink)}
       <input type="file" id="impFile" accept="application/json" style="display:none" onchange="importData(event)">
       <button class="btn danger wide" style="margin-top:10px" onclick="wipe()">Borrar todos los datos</button>
     </div>
-    <p class="foot">Jornal · versión 1.0</p>
+    <p class="foot">Jornal · versión 2.0</p>
   </section>
 </div>
 
@@ -399,39 +410,30 @@ nav button.on{color:var(--ink)}
 
 <script>
 /* ============================================================
-   Jornal — control de jornadas, apartado y gastos.
+   Jornal — deudas que se pagan por abonos, ingresos y gastos.
    Datos 100% locales (localStorage), sin red, sin cuentas.
+
+   Modelo: cada deuda tiene un total y un día de pago. Los abonos
+   la van bajando hasta cero. Repartir un ingreso a una deuda ES
+   abonarle: no hay estado intermedio de "apartado".
+
+     libre        = Σ ingreso − Σ abono − Σ gasto
+     saldo(deuda) = deuda.total − Σ abono de esa deuda
    ============================================================ */
 
-const KEY = 'jornal.v1';
+const KEY = 'jornal.v2';
+const KEY_V1 = 'jornal.v1';
 const DEFAULTS = {
-  pct: 30,
-  cuota: 0,
-  diaPago: 5,
   cats: ['Transporte', 'Comida', 'Universidad', 'Casa', 'Otros'],
-  movs: [],           // {id, tipo:'jornada'|'gasto'|'pago', fecha:'YYYY-MM-DD', monto, aparta, nota, cat}
+  deudas: [],         // {id, nombre, icono, total, diaPago}
+  movs: [],           // {id, tipo:'jornada'|'gasto'|'abono', fecha, monto, ...}
   ultimoRespaldo: null,  // 'YYYY-MM-DD' de la última copia descargada o restaurada
   avisoOculto: null      // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
 };
 const DIAS_RESPALDO = 15;   // a partir de aquí se recuerda descargar copia
 const DIAS_SNOOZE   = 7;    // cuánto calla el aviso al descartarlo
-
-/* ---- almacenamiento tolerante a fallos (algunos previews bloquean localStorage) ---- */
-let memoria = null;
-function load(){
-  try{
-    const raw = localStorage.getItem(KEY);
-    return raw ? Object.assign({}, DEFAULTS, JSON.parse(raw)) : Object.assign({}, DEFAULTS);
-  }catch(e){
-    if(!memoria) memoria = Object.assign({}, DEFAULTS);
-    return memoria;
-  }
-}
-function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(S)); }
-  catch(e){ memoria = S; }
-}
-let S = load();
+const DIAS_VENCE    = 5;    // con cuántos días de anticipación se avisa un vencimiento
+const ICONOS = ['🎓','📱','🌐','🏠','🏍️','💳','💡','🧾','🚌','🩺'];
 
 /* ---- utilidades ---- */
 const fmt = n => '$' + Math.round(n||0).toLocaleString('es-CO');
@@ -450,21 +452,107 @@ function toast(msg){
   t.textContent = msg; t.classList.add('on');
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2200);
 }
-function esc(s){ return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---- migración v1 → v2 ------------------------------------------------
+   v1 tenía UNA cuota mensual y un porcentaje que se apartaba de cada
+   jornada. v2 tiene N deudas y abonos en pesos. La equivalencia:
+     - lo que se apartaba de una jornada pasa a ser un abono a la deuda
+       "Crédito", que es la que existía implícita en v1
+     - los movimientos 'pago' de v1 no tienen equivalente: allí apartar y
+       pagar eran dos pasos y aquí es uno solo. Se descartan para no
+       contar la plata dos veces
+   La copia intacta de v1 queda en 'jornal.v1.backup' pase lo que pase. */
+function migrarV1(v1){
+  const out = Object.assign({}, DEFAULTS, {
+    cats: (v1.cats && v1.cats.length) ? v1.cats.slice() : DEFAULTS.cats.slice(),
+    deudas: [], movs: [],
+    ultimoRespaldo: v1.ultimoRespaldo || null,
+    avisoOculto: v1.avisoOculto || null
+  });
+  const viejos = Array.isArray(v1.movs) ? v1.movs : [];
+  const apartadoTotal = viejos.reduce((s,m) => s + (m.tipo==='jornada' ? (m.aparta||0) : 0), 0);
+  const hayCredito = (v1.cuota > 0) || apartadoTotal > 0 || viejos.some(m => m.tipo === 'pago');
+  let did = null;
+  if(hayCredito){
+    did = uid();
+    out.deudas.push({
+      id: did, nombre: 'Crédito', icono: '💳',
+      // en v1 la cuota se reiniciaba cada mes, así que no existe un "total".
+      // Se toma lo mayor entre la cuota y lo ya abonado para no arrancar con saldo negativo.
+      total: Math.max(v1.cuota || 0, apartadoTotal),
+      diaPago: Math.min(Math.max(v1.diaPago || 5, 1), 28)
+    });
+  }
+  for(const m of viejos){
+    if(m.tipo === 'jornada'){
+      out.movs.push({ id:m.id, tipo:'jornada', fecha:m.fecha, monto:m.monto, nota:m.nota||'' });
+      if(did && m.aparta > 0){
+        out.movs.push({ id:uid(), tipo:'abono', fecha:m.fecha, monto:m.aparta, deudaId:did, nota:'', origen:m.id });
+      }
+    } else if(m.tipo === 'gasto'){
+      out.movs.push({ id:m.id, tipo:'gasto', fecha:m.fecha, monto:m.monto, cat:m.cat||'Otros', nota:m.nota||'' });
+    }
+  }
+  return out;
+}
+
+/* ---- almacenamiento tolerante a fallos (algunos previews bloquean localStorage) ---- */
+let memoria = null;
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw) return Object.assign({}, DEFAULTS, JSON.parse(raw));
+    const viejo = localStorage.getItem(KEY_V1);
+    if(viejo){
+      localStorage.setItem('jornal.v1.backup', viejo);   // red de seguridad antes de tocar nada
+      const v2 = migrarV1(JSON.parse(viejo));
+      localStorage.setItem(KEY, JSON.stringify(v2));
+      return v2;
+    }
+    return Object.assign({}, DEFAULTS);
+  }catch(e){
+    if(!memoria) memoria = Object.assign({}, DEFAULTS);
+    return memoria;
+  }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch(e){ memoria = S; }
+}
+let S = load();
 
 /* ---- cálculos ---- */
 function totales(){
-  let libre = 0, apartado = 0;
+  let recibido = 0, abonado = 0, gastado = 0;
   for(const m of S.movs){
-    if(m.tipo === 'jornada'){ apartado += m.aparta; libre += m.monto - m.aparta; }
-    else if(m.tipo === 'gasto'){ libre -= m.monto; }
-    else if(m.tipo === 'pago'){ apartado -= m.monto; }
+    if(m.tipo === 'jornada') recibido += m.monto;
+    else if(m.tipo === 'abono') abonado += m.monto;
+    else if(m.tipo === 'gasto') gastado += m.monto;
   }
-  return { libre, apartado };
+  return { recibido, abonado, gastado, libre: recibido - abonado - gastado };
 }
-function proximoPago(){
+function deuda(id){ return S.deudas.find(d => d.id === id) || null; }
+function abonadoDe(id){
+  return S.movs.reduce((s,m) => (m.tipo==='abono' && m.deudaId===id) ? s + m.monto : s, 0);
+}
+function estadoDeuda(d){
+  const abonado = abonadoDe(d.id);
+  const saldo = Math.max(d.total - abonado, 0);
+  const pct = d.total > 0 ? Math.min(abonado / d.total * 100, 100) : 0;
+  return { abonado, saldo, pct, pagada: d.total > 0 && abonado >= d.total };
+}
+function totalDeudas(){
+  return S.deudas.reduce((a,d) => {
+    const e = estadoDeuda(d);
+    a.total += d.total; a.abonado += Math.min(e.abonado, d.total); a.saldo += e.saldo;
+    return a;
+  }, {total:0, abonado:0, saldo:0});
+}
+/* próximo vencimiento de una deuda: su día del mes, este mes o el siguiente */
+function proximoPago(diaPago){
   const n = new Date(); n.setHours(0,0,0,0);
-  const dia = Math.min(Math.max(S.diaPago||1,1),28);
+  const dia = Math.min(Math.max(diaPago||1,1),28);
   let f = new Date(n.getFullYear(), n.getMonth(), dia);
   if(f < n) f = new Date(n.getFullYear(), n.getMonth()+1, dia);
   return { fecha:f, dias: Math.round((f - n)/86400000) };
@@ -473,9 +561,8 @@ function delMes(ym){
   return S.movs.filter(m => m.fecha.slice(0,7) === ym);
 }
 
-/* Recordatorio de respaldo. Devuelve {dias, nunca} si toca avisar, o null.
-   Si nunca ha respaldado, cuenta desde el movimiento más viejo: lo que está
-   en riesgo es la antigüedad de los datos, no la de la app. */
+/* Avisos de Inicio, por prioridad: primero un vencimiento cercano de una
+   deuda sin liquidar, y si no hay, el recordatorio de respaldo. */
 function avisoRespaldo(){
   if(!S.movs.length) return null;                       // sin datos no hay nada que perder
   const h = hoy();
@@ -484,92 +571,56 @@ function avisoRespaldo(){
   const dias = diasEntre(desde, h);
   return dias >= DIAS_RESPALDO ? { dias, nunca: !S.ultimoRespaldo } : null;
 }
+function avisoVence(){
+  const pend = S.deudas
+    .filter(d => !estadoDeuda(d).pagada)
+    .map(d => ({ d, p: proximoPago(d.diaPago) }))
+    .filter(x => x.p.dias <= DIAS_VENCE)
+    .sort((a,b) => a.p.dias - b.p.dias);
+  return pend.length ? pend[0] : null;
+}
 function ocultarAviso(){
   S.avisoOculto = hoy();
   render();
   toast('Te lo recuerdo en ' + DIAS_SNOOZE + ' días.');
 }
 
-/* Ciclos cerrados: cada pago cierra uno. NO se guardan como snapshot, se
-   derivan de los movimientos igual que totales(). Con la edición de
-   movimientos (P1-1) un histórico guardado quedaría mintiendo apenas
-   corrijas una jornada vieja; derivándolo siempre cuadra con los datos.
-   Lo único que sí se guarda en el pago es cuotaObjetivo, porque el valor
-   de la cuota en Ajustes puede cambiar y ese dato no se puede reconstruir. */
-function ciclos(){
-  const orden = S.movs.filter(m => m.tipo !== 'gasto')
-    .sort((a,b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id));
-  const out = [];
-  let arrastre = 0, apartado = 0, jornadas = 0, desde = null;
-  for(const m of orden){
-    if(m.tipo === 'jornada'){
-      apartado += m.aparta; jornadas++;
-      if(!desde) desde = m.fecha;
-    } else {
-      const disponible = arrastre + apartado;
-      out.push({
-        n: out.length + 1, id: m.id, fecha: m.fecha, desde: desde || m.fecha,
-        cuota: m.cuotaObjetivo != null ? m.cuotaObjetivo : m.monto,
-        pagado: m.monto, apartado, arrastre, jornadas,
-        sobra: disponible - m.monto
-      });
-      arrastre = disponible - m.monto;
-      apartado = 0; jornadas = 0; desde = null;
-    }
-  }
-  return out;
-}
-
 /* ---- render ---- */
 function render(){
-  const { libre, apartado } = totales();
-  document.getElementById('disponible').textContent = fmt(libre);
-  document.getElementById('disponible').classList.toggle('neg', libre < 0);
+  const t = totales();
+  const td = totalDeudas();
+  document.getElementById('disponible').textContent = fmt(t.libre);
+  document.getElementById('disponible').classList.toggle('neg', t.libre < 0);
 
-  const total = Math.max(libre,0) + Math.max(apartado,0);
-  const pa = total > 0 ? (Math.max(apartado,0)/total*100) : 0;
+  const pa = td.total > 0 ? (td.abonado / td.total * 100) : 0;
   document.getElementById('splitA').style.width = pa + '%';
-  document.getElementById('splitB').style.width = (100-pa) + '%';
-  document.getElementById('legA').textContent = fmt(apartado);
-  document.getElementById('legB').textContent = fmt(libre);
+  document.getElementById('splitB').style.width = (100 - pa) + '%';
+  document.getElementById('legA').textContent = fmt(td.abonado);
+  document.getElementById('legB').textContent = fmt(td.saldo);
 
-  const pp = proximoPago();
-  document.getElementById('cycleLabel').textContent = 'PAGO · ' + pp.fecha.getDate() + ' ' + MESES[pp.fecha.getMonth()].toUpperCase().slice(0,3);
+  const vence = avisoVence();
+  document.getElementById('cycleLabel').textContent = vence
+    ? 'VENCE · ' + vence.p.fecha.getDate() + ' ' + MESES[vence.p.fecha.getMonth()].toUpperCase().slice(0,3)
+    : (S.deudas.length ? 'AL DÍA' : '');
 
-  const cuota = S.cuota || 0;
-  const pct = cuota > 0 ? Math.min(apartado/cuota*100, 100) : 0;
-  document.getElementById('metaFill').style.width = Math.max(pct,0) + '%';
-  document.getElementById('metaPct').textContent = cuota > 0 ? Math.round(pct) + '%' : 'define la cuota en Ajustes';
-  document.getElementById('mAcum').textContent = fmt(apartado);
-  const falta = Math.max(cuota - apartado, 0);
-  document.getElementById('mFalta').textContent = cuota > 0 ? fmt(falta) : '—';
-  document.getElementById('mDias').textContent = pp.dias === 0 ? 'hoy' : pp.dias + ' días';
+  document.getElementById('dispSub').textContent =
+    !S.deudas.length ? 'Agrega tus deudas en Ajustes para empezar a abonarles.'
+    : td.saldo === 0 ? '¡No debes nada! Todas tus deudas están pagadas.'
+    : 'Te faltan ' + fmt(td.saldo) + ' por abonar en total.';
 
-  // promedio de apartado por jornada (últimas 8 jornadas)
-  const js = S.movs.filter(m => m.tipo === 'jornada').sort((a,b)=> b.fecha.localeCompare(a.fecha)).slice(0,8);
-  const promAp = js.length ? js.reduce((s,m)=>s+m.aparta,0)/js.length : 0;
-  document.getElementById('mJor').textContent =
-    (falta > 0 && promAp > 0) ? '≈ ' + Math.ceil(falta/promAp) : (falta === 0 && cuota > 0 ? 'completa' : '—');
-
-  const subs = [];
-  if(cuota > 0 && falta > 0 && promAp > 0){
-    subs.push('Te faltan ' + fmt(falta) + ' para la cuota.');
-  } else if(cuota > 0 && falta === 0){
-    subs.push('Ya tienes la cuota completa.');
-  }
-  document.getElementById('dispSub').textContent = subs[0] || 'Este saldo ya tiene descontado lo que apartaste.';
+  renderDeudas();
 
   // resumen del mes actual
   const ym = hoy().slice(0,7);
   const mm = delMes(ym);
   const jor = mm.filter(m=>m.tipo==='jornada');
   const recibido = jor.reduce((s,m)=>s+m.monto,0);
-  const apart = jor.reduce((s,m)=>s+m.aparta,0);
+  const abon = mm.filter(m=>m.tipo==='abono').reduce((s,m)=>s+m.monto,0);
   const gast = mm.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
   document.getElementById('mesTitulo').textContent = MESES[Number(ym.slice(5,7))-1];
   document.getElementById('sJor').textContent = jor.length;
   document.getElementById('sRecibido').textContent = fmt(recibido);
-  document.getElementById('sApartado').textContent = fmt(apart);
+  document.getElementById('sApartado').textContent = fmt(abon);
   document.getElementById('sGastado').textContent = fmt(gast);
   document.getElementById('sProm').textContent = jor.length ? fmt(recibido/jor.length) : '$0';
 
@@ -581,14 +632,30 @@ function render(){
   document.getElementById('catList').innerHTML = entries.map(([c,v]) =>
     '<div class="row"><span class="k">'+esc(c)+'</span><span class="v spend">'+fmt(v)+'</span></div>').join('');
 
-  // recordatorio de respaldo
+  // avisos: primero el vencimiento, después el respaldo
+  const nudge = document.getElementById('nudge');
   const av = avisoRespaldo();
-  document.getElementById('nudge').hidden = !av;
-  if(av){
+  if(vence){
+    const e = estadoDeuda(vence.d);
+    nudge.hidden = false;
+    document.getElementById('nudgeText').textContent =
+      (vence.p.dias === 0 ? 'Hoy' : vence.p.dias === 1 ? 'Mañana' : 'En ' + vence.p.dias + ' días')
+      + ' vence ' + vence.d.nombre + '. Te faltan ' + fmt(e.saldo) + '.';
+    const go = document.getElementById('nudgeGo');
+    go.textContent = 'Registrar abono';
+    go.onclick = () => openSheet('abono', null, vence.d.id);
+  } else if(av){
+    nudge.hidden = false;
     document.getElementById('nudgeText').textContent = av.nunca
       ? 'Llevas ' + av.dias + ' días de registros y ninguna copia de seguridad.'
       : 'Tu última copia es de hace ' + av.dias + ' días.';
+    const go = document.getElementById('nudgeGo');
+    go.textContent = 'Descargar copia';
+    go.onclick = () => exportData();
+  } else {
+    nudge.hidden = true;
   }
+
   const dr = S.ultimoRespaldo ? diasEntre(S.ultimoRespaldo, hoy()) : null;
   document.getElementById('respaldoEstado').textContent = S.ultimoRespaldo
     ? 'Última copia: ' + (dr === 0 ? 'hoy' : dr === 1 ? 'ayer' : 'hace ' + dr + ' días') +
@@ -596,12 +663,48 @@ function render(){
     : 'Todavía no has descargado ninguna copia.';
 
   renderMovs();
-  renderCiclos();
+  renderDeudaEdit();
   renderCats();
-  document.getElementById('setPct').value = S.pct;
-  document.getElementById('setCuota').value = S.cuota || '';
-  document.getElementById('setDia').value = S.diaPago;
   save();
+}
+
+function renderDeudas(){
+  const el = document.getElementById('deudaList');
+  document.getElementById('deudasTitulo').textContent =
+    S.deudas.length ? 'Tus deudas · ' + S.deudas.length : 'Tus deudas';
+  if(!S.deudas.length){
+    el.innerHTML = '<div class="card"><div class="empty" style="padding:28px 16px">'
+      + '<p>Todavía no has agregado ninguna deuda.</p>'
+      + '<small>Universidad, celular, moto, un préstamo: lo que pagues por abonos.</small>'
+      + '<button class="btn ghost wide" style="margin-top:16px" onclick="openSheet(\'deuda\')">Agregar la primera</button>'
+      + '</div></div>';
+    return;
+  }
+  el.innerHTML = S.deudas.map(d => {
+    const e = estadoDeuda(d);
+    const p = proximoPago(d.diaPago);
+    const cerca = p.dias <= DIAS_VENCE && !e.pagada;
+    const venceTxt = e.pagada ? 'Sin pagos pendientes'
+      : (p.dias === 0 ? 'Vence hoy' : p.dias === 1 ? 'Vence mañana' : 'Vence en ' + p.dias + ' días');
+    return '<div class="deuda' + (e.pagada ? ' pagada' : '') + '">'
+      + '<div class="deuda-top">'
+      +   '<span class="deuda-ico">' + esc(d.icono || '🧾') + '</span>'
+      +   '<span class="deuda-id"><span class="deuda-n">' + esc(d.nombre) + '</span>'
+      +     '<span class="deuda-v">Día ' + d.diaPago + ' de cada mes</span></span>'
+      +   '<span class="deuda-saldo"><b>' + fmt(e.saldo) + '</b><small>' + (e.pagada ? 'pagada' : 'saldo') + '</small></span>'
+      + '</div>'
+      + '<div class="barra"><i style="width:' + e.pct + '%"></i></div>'
+      + '<div class="deuda-pie">'
+      +   '<span>' + Math.round(e.pct) + '% · <b>' + fmt(e.abonado) + '</b> de ' + fmt(d.total) + '</span>'
+      +   (e.pagada ? '<span class="sello">Pagada</span>'
+                    : '<span' + (cerca ? ' class="vence"' : '') + '>' + venceTxt + '</span>')
+      + '</div>'
+      + '<div class="deuda-acts">'
+      +   (e.pagada ? '' : '<button class="btn acc" onclick="openSheet(\'abono\',null,\'' + d.id + '\')">Registrar abono</button>')
+      +   '<button class="btn ghost" onclick="openSheet(\'historial\',null,\'' + d.id + '\')">Ver abonos</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 let mesVista = hoy().slice(0,7);
@@ -622,17 +725,22 @@ function renderMovs(){
 
   const el = document.getElementById('movList');
   if(!list.length){
-    el.innerHTML = '<div class="empty"><p>Sin movimientos este mes.</p><small>Registra una jornada o un gasto desde Inicio.</small></div>';
+    el.innerHTML = '<div class="empty"><p>Sin movimientos este mes.</p><small>Registra un ingreso o un gasto desde Inicio.</small></div>';
     return;
   }
   el.innerHTML = list.map(mv => {
     const cls = mv.tipo === 'jornada' ? 'j' : (mv.tipo === 'gasto' ? 'g' : 'p');
-    const letra = mv.tipo === 'jornada' ? 'J' : (mv.tipo === 'gasto' ? 'G' : 'C');
-    const titulo = mv.nota || (mv.tipo==='jornada' ? 'Jornada' : mv.tipo==='gasto' ? (mv.cat||'Gasto') : 'Pago de la cuota');
+    const letra = mv.tipo === 'jornada' ? 'I' : (mv.tipo === 'gasto' ? 'G' : 'A');
+    const d = mv.tipo === 'abono' ? deuda(mv.deudaId) : null;
+    const titulo = mv.nota || (mv.tipo==='jornada' ? 'Ingreso'
+      : mv.tipo==='gasto' ? (mv.cat||'Gasto')
+      : ('Abono a ' + (d ? d.nombre : 'una deuda borrada')));
     const signo = mv.tipo === 'jornada' ? '+' : '−';
     const color = mv.tipo === 'jornada' ? 'var(--accent)' : (mv.tipo==='gasto' ? 'var(--spend)' : 'var(--gold)');
-    const extra = mv.tipo === 'jornada' ? '<small>aparté ' + fmt(mv.aparta) + '</small>' : '';
-    const meta = mv.tipo === 'gasto' && mv.cat ? ' · ' + esc(mv.cat) : '';
+    const repartido = mv.tipo === 'jornada' ? repartosDe(mv.id).reduce((s,a)=>s+a.monto,0) : 0;
+    const extra = repartido > 0 ? '<small>abonaste ' + fmt(repartido) + '</small>' : '';
+    const meta = mv.tipo === 'gasto' && mv.cat ? ' · ' + esc(mv.cat)
+      : (mv.tipo === 'abono' && d ? ' · ' + esc(d.icono || '') + ' ' + esc(d.nombre) : '');
     return '<div class="mv">'
       + '<button class="mvmain" onclick="editMov(\''+mv.id+'\')" aria-label="Editar '+esc(titulo)+'">'
       +   '<span class="tag '+cls+'">'+letra+'</span>'
@@ -642,31 +750,22 @@ function renderMovs(){
       + '<button class="del" onclick="delMov(\''+mv.id+'\')" aria-label="Eliminar">×</button></div>';
   }).join('');
 }
-function renderCiclos(){
-  const cs = ciclos().reverse();   // el más reciente arriba
-  document.getElementById('ciclosTitulo').textContent =
-    cs.length ? 'Cuotas pagadas · ' + cs.length : 'Cuotas pagadas';
-  const el = document.getElementById('cicloList');
-  if(!cs.length){
-    el.innerHTML = '<div class="empty"><p>Todavía no has cerrado ningún ciclo.</p>'
-      + '<small>Cuando registres el pago de tu cuota, queda aquí con sus cifras.</small></div>';
+function renderDeudaEdit(){
+  const el = document.getElementById('deudaEdit');
+  if(!S.deudas.length){
+    el.innerHTML = '<p class="hint" style="margin:0">Ninguna todavía.</p>';
     return;
   }
-  el.innerHTML = cs.map(c => {
-    let d = 'Apartaste ' + fmt(c.apartado) + ' en ' + c.jornadas
-          + (c.jornadas === 1 ? ' jornada' : ' jornadas');
-    if(c.arrastre > 0) d += ', más ' + fmt(c.arrastre) + ' que venían del ciclo anterior';
-    d += '.';
-    let s = '', clase = '';
-    if(c.sobra > 0)      s = 'Te sobraron ' + fmt(c.sobra) + ' para la próxima cuota.';
-    else if(c.sobra < 0){ s = 'Pagaste ' + fmt(-c.sobra) + ' más de lo que tenías apartado.'; clase = ' corto'; }
-    if(c.cuota !== c.pagado) s += (s ? ' ' : '') + 'La cuota era de ' + fmt(c.cuota) + '.';
-    return '<div class="ciclo">'
-      + '<div class="ciclo-top"><span class="ciclo-n">Cuota ' + c.n + ' · ' + fechaCorta(c.fecha) + '</span>'
-      +   '<span class="ciclo-m">' + fmt(c.pagado) + '</span></div>'
-      + '<p class="ciclo-d">' + d + '</p>'
-      + (s ? '<p class="ciclo-s' + clase + '">' + s + '</p>' : '')
-      + '</div>';
+  el.innerHTML = S.deudas.map(d => {
+    const e = estadoDeuda(d);
+    return '<div class="mv">'
+      + '<button class="mvmain" onclick="openSheet(\'deuda\',\''+d.id+'\')" aria-label="Editar '+esc(d.nombre)+'">'
+      +   '<span class="tag j" style="font-size:16px">'+esc(d.icono||'🧾')+'</span>'
+      +   '<span class="body"><span class="t">'+esc(d.nombre)+'</span>'
+      +     '<span class="d">Total '+fmt(d.total)+' · día '+d.diaPago+'</span></span>'
+      +   '<span class="amt" style="color:'+(e.pagada?'var(--accent)':'var(--ink)')+'">'+fmt(e.saldo)+'</span>'
+      + '</button>'
+      + '<button class="del" onclick="rmDeuda(\''+d.id+'\')" aria-label="Eliminar">×</button></div>';
   }).join('');
 }
 function renderCats(){
@@ -682,48 +781,74 @@ function go(v){
 }
 
 /* ---- hojas ---- */
-/* id del movimiento que se está editando; null cuando la hoja crea uno nuevo */
+/* id del movimiento (o deuda) que se está editando; null cuando se crea uno nuevo */
 let editando = null;
 
-/* El porcentaje no se guarda en el movimiento: se deduce de lo que se apartó.
-   Así una jornada editada conserva SU porcentaje, no el de los ajustes. */
-const pctDe = m => m.monto > 0 ? Math.round(m.aparta / m.monto * 1000) / 10 : S.pct;
+/* abonos que nacieron al repartir un ingreso concreto */
+function repartosDe(jornadaId){
+  return S.movs.filter(m => m.tipo === 'abono' && m.origen === jornadaId);
+}
+
+/* Enfoca el primer campo cuando la hoja terminó de subir. Se comprueba que
+   el campo siga ahí: si el usuario cierra o cambia de hoja antes de los
+   260 ms, el cuerpo ya fue reemplazado y el elemento no existe. */
+function foco(sel){
+  setTimeout(() => {
+    const el = document.querySelector('#sheetBody ' + sel);
+    if(el) el.focus();
+  }, 260);
+}
 
 function editMov(id){
   const m = S.movs.find(x => x.id === id);
-  if(m) openSheet(m.tipo, id);
+  if(m) openSheet(m.tipo === 'abono' ? 'abono' : m.tipo, id);
 }
 
-function openSheet(tipo, id){
-  const m = id ? S.movs.find(x => x.id === id) : null;
+function openSheet(tipo, id, deudaId){
+  const m = id ? (tipo === 'deuda' ? deuda(id) : S.movs.find(x => x.id === id)) : null;
   editando = m ? id : null;
   const t = document.getElementById('sheetTitle');
   const b = document.getElementById('sheetBody');
+
   if(tipo === 'jornada'){
-    t.textContent = m ? 'Editar jornada' : 'Registrar jornada';
+    const previos = m ? repartosDe(m.id) : [];
+    const montoDe = dId => { const a = previos.find(x => x.deudaId === dId); return a ? a.monto : ''; };
+    t.textContent = m ? 'Editar ingreso' : 'Registrar ingreso';
     b.innerHTML = `
       <div class="field"><label for="f_monto">Cuánto recibiste</label>
         <input id="f_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
-      <div class="field"><label for="f_pct">Porcentaje a apartar</label>
-        <input id="f_pct" type="number" inputmode="decimal" min="0" max="100" value="${m ? pctDe(m) : S.pct}"></div>
-      <p class="hint" id="f_prev">De este monto se apartará automáticamente lo que corresponda.</p>
+      ${S.deudas.length ? `<label>Reparte a tus deudas</label>
+      <div id="f_reps">${S.deudas.map(d => {
+        const e = estadoDeuda(d);
+        return '<div class="rep' + (e.pagada ? ' lista' : '') + '">'
+          + '<span class="rep-ico">' + esc(d.icono||'🧾') + '</span>'
+          + '<span class="rep-id"><span class="rep-n">' + esc(d.nombre) + '</span>'
+          +   '<span class="rep-s">' + (e.pagada ? 'ya está pagada' : 'faltan ' + fmt(e.saldo)) + '</span></span>'
+          + '<input type="number" inputmode="decimal" min="0" placeholder="0" data-d="' + d.id + '" value="' + montoDe(d.id) + '">'
+          + '</div>';
+      }).join('')}</div>` : '<p class="hint">Todavía no tienes deudas. Agrégalas en Ajustes y podrás repartir cada ingreso desde aquí.</p>'}
+      <p class="hint" id="f_prev" style="margin-top:12px">Escribe cuánto recibiste y cuánto le abonas a cada deuda.</p>
       <div class="field"><label for="f_fecha">Fecha</label>
         <input id="f_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
       <div class="field"><label for="f_nota">Nota (opcional)</label>
         <input id="f_nota" type="text" placeholder="Turno del sábado, arreglo de equipo…" value="${m ? esc(m.nota) : ''}"></div>
-      <button class="btn acc wide" onclick="addJornada()">${m ? 'Guardar cambios' : 'Guardar jornada'}</button>`;
+      <button class="btn acc wide" onclick="addJornada()">${m ? 'Guardar cambios' : 'Guardar ingreso'}</button>`;
     const upd = () => {
-      const mo = Number(document.getElementById('f_monto').value)||0;
-      const pc = Number(document.getElementById('f_pct').value)||0;
-      const ap = Math.round(mo*pc/100);
-      document.getElementById('f_prev').textContent = mo
-        ? 'Se apartan ' + fmt(ap) + ' para la cuota y te quedan ' + fmt(mo-ap) + ' disponibles.'
-        : 'De este monto se apartará automáticamente lo que corresponda.';
+      const mo = Number(document.getElementById('f_monto').value) || 0;
+      const rep = [...b.querySelectorAll('#f_reps input')].reduce((s,i)=> s + (Number(i.value)||0), 0);
+      const libre = mo - rep;
+      document.getElementById('f_prev').textContent = !mo
+        ? 'Escribe cuánto recibiste y cuánto le abonas a cada deuda.'
+        : libre < 0
+          ? 'Estás repartiendo ' + fmt(-libre) + ' más de lo que recibiste.'
+          : 'Abonas ' + fmt(rep) + ' y te quedan ' + fmt(libre) + ' libres para gastar.';
+      document.getElementById('f_prev').style.color = libre < 0 ? 'var(--spend)' : 'var(--muted)';
     };
     b.querySelector('#f_monto').addEventListener('input', upd);
-    b.querySelector('#f_pct').addEventListener('input', upd);
-    if(m) upd(); else setTimeout(()=>b.querySelector('#f_monto').focus(), 260);
+    b.querySelectorAll('#f_reps input').forEach(i => i.addEventListener('input', upd));
+    if(m) upd(); else foco('#f_monto');
   }
+
   if(tipo === 'gasto'){
     // si la categoría del gasto ya no existe en Ajustes, se muestra igual para no perderla
     const cats = (m && m.cat && !S.cats.includes(m.cat)) ? [m.cat].concat(S.cats) : S.cats;
@@ -743,21 +868,82 @@ function openSheet(tipo, id){
       b.querySelectorAll('#g_cats .pill').forEach(x=>x.classList.remove('on'));
       p.classList.add('on');
     });
-    if(!m) setTimeout(()=>b.querySelector('#g_monto').focus(), 260);
+    if(!m) foco('#g_monto');
   }
-  if(tipo === 'pago'){
-    const { apartado } = totales();
-    t.textContent = m ? 'Editar pago de la cuota' : 'Registrar pago de la cuota';
+
+  if(tipo === 'abono'){
+    const dId = m ? m.deudaId : deudaId;
+    const d = deuda(dId);
+    if(!d){ toast('Esa deuda ya no existe.'); return; }
+    const e = estadoDeuda(d);
+    // al editar, el saldo disponible incluye lo que este mismo abono ya descontó
+    const tope = e.saldo + (m ? m.monto : 0);
+    t.textContent = m ? 'Editar abono' : 'Abonar a ' + d.nombre;
     b.innerHTML = `
-      <p class="hint" style="margin-top:0">${m
-        ? 'Corrige el monto o la fecha del pago. El acumulado se recalcula solo.'
-        : 'Tienes ' + fmt(apartado) + ' acumulados. Al registrar el pago, ese monto sale del acumulado y el contador arranca de nuevo.'}</p>
-      <div class="field"><label for="p_monto">Monto pagado</label>
-        <input id="p_monto" class="money" type="number" inputmode="decimal" value="${m ? m.monto : (S.cuota||'')}" min="0"></div>
-      <div class="field"><label for="p_fecha">Fecha</label>
-        <input id="p_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
-      <button class="btn wide" onclick="addPago()">${m ? 'Guardar cambios' : 'Confirmar pago'}</button>`;
+      <p class="hint" style="margin-top:0">${esc(d.icono||'🧾')} ${esc(d.nombre)} · te faltan ${fmt(tope)} de ${fmt(d.total)}.</p>
+      <input type="hidden" id="a_deuda" value="${esc(d.id)}">
+      <div class="field"><label for="a_monto">Cuánto abonas</label>
+        <input id="a_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
+      <p class="hint" id="a_prev">Este monto sale de tu disponible y baja el saldo de la deuda.</p>
+      <div class="field"><label for="a_fecha">Fecha</label>
+        <input id="a_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
+      <div class="field"><label for="a_nota">Nota (opcional)</label>
+        <input id="a_nota" type="text" placeholder="Abono de agosto…" value="${m ? esc(m.nota) : ''}"></div>
+      <button class="btn acc wide" onclick="addAbono()">${m ? 'Guardar cambios' : 'Registrar abono'}</button>`;
+    const upd = () => {
+      const v = Number(document.getElementById('a_monto').value) || 0;
+      const p = document.getElementById('a_prev');
+      p.textContent = !v ? 'Este monto sale de tu disponible y baja el saldo de la deuda.'
+        : v > tope ? 'Son ' + fmt(v - tope) + ' más de lo que debes.'
+        : v === tope ? '¡Con esto queda pagada!'
+        : 'Quedaría en ' + fmt(tope - v) + '.';
+      p.style.color = v > tope ? 'var(--spend)' : 'var(--muted)';
+    };
+    b.querySelector('#a_monto').addEventListener('input', upd);
+    if(m) upd(); else foco('#a_monto');
   }
+
+  if(tipo === 'deuda'){
+    t.textContent = m ? 'Editar deuda' : 'Nueva deuda';
+    const ico = m ? (m.icono || '🧾') : '🧾';
+    b.innerHTML = `
+      <div class="field"><label for="d_nombre">Nombre</label>
+        <input id="d_nombre" type="text" placeholder="Universidad, Celular, Moto…" value="${m ? esc(m.nombre) : ''}"></div>
+      <div class="field"><label>Ícono</label>
+        <div class="pills" id="d_icos">${ICONOS.map(i=>'<button class="pill'+(i===ico?' on':'')+'" data-i="'+i+'" style="font-size:18px;padding:8px 12px">'+i+'</button>').join('')}</div></div>
+      <div class="field" style="margin-top:16px"><label for="d_total">Total a pagar</label>
+        <input id="d_total" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.total : ''}"></div>
+      <div class="field"><label for="d_dia">Día del mes en que pagas</label>
+        <input id="d_dia" type="number" inputmode="numeric" min="1" max="28" value="${m ? m.diaPago : 5}"></div>
+      <p class="hint">${m ? 'Ya le has abonado ' + fmt(abonadoDe(m.id)) + '. Si bajas el total por debajo de eso, la deuda queda pagada.' : 'Después registras abonos y el saldo va bajando hasta cero.'}</p>
+      <button class="btn acc wide" onclick="addDeuda()">${m ? 'Guardar cambios' : 'Crear deuda'}</button>`;
+    b.querySelectorAll('#d_icos .pill').forEach(p => p.onclick = () => {
+      b.querySelectorAll('#d_icos .pill').forEach(x=>x.classList.remove('on'));
+      p.classList.add('on');
+    });
+    if(!m) foco('#d_nombre');
+  }
+
+  if(tipo === 'historial'){
+    const d = deuda(deudaId);
+    if(!d){ toast('Esa deuda ya no existe.'); return; }
+    const e = estadoDeuda(d);
+    const abonos = S.movs.filter(x => x.tipo==='abono' && x.deudaId===d.id)
+      .sort((a,b2)=> b2.fecha.localeCompare(a.fecha) || b2.id.localeCompare(a.id));
+    t.textContent = 'Abonos a ' + d.nombre;
+    b.innerHTML = `
+      <div class="row" style="padding-top:0"><span class="k">Total</span><span class="v">${fmt(d.total)}</span></div>
+      <div class="row"><span class="k">Abonado</span><span class="v acc">${fmt(e.abonado)}</span></div>
+      <div class="row"><span class="k">Saldo</span><span class="v ${e.pagada?'acc':'gold'}">${fmt(e.saldo)}</span></div>
+      <div class="barra" style="margin:14px 0 18px"><i style="width:${e.pct}%"></i></div>
+      ${abonos.length ? abonos.map(a =>
+        '<div class="row"><span class="k">' + fechaCorta(a.fecha)
+        + (a.nota ? ' · ' + esc(a.nota) : (a.origen ? ' · de un ingreso' : ''))
+        + '</span><span class="v acc">' + fmt(a.monto) + '</span></div>').join('')
+        : '<div class="empty" style="padding:24px 12px"><p>Todavía no le has abonado nada.</p></div>'}
+      ${e.pagada ? '' : '<button class="btn acc wide" style="margin-top:18px" onclick="openSheet(\'abono\',null,\'' + d.id + '\')">Registrar abono</button>'}`;
+  }
+
   document.getElementById('sheet').classList.add('on');
 }
 function closeSheet(){
@@ -776,51 +962,106 @@ function guardarMov(datos){
   S.movs.push(Object.assign({id: uid()}, datos));
   return true;
 }
+
 function addJornada(){
   const monto = Number(document.getElementById('f_monto').value);
-  const pct = Number(document.getElementById('f_pct').value);
   if(!monto || monto <= 0){ toast('Escribe cuánto recibiste.'); return; }
-  const aparta = Math.round(monto * (isNaN(pct)?S.pct:pct) / 100);
-  const nuevo = guardarMov({ tipo:'jornada', fecha:document.getElementById('f_fecha').value || hoy(),
-    monto, aparta, nota:document.getElementById('f_nota').value.trim() });
+  const reps = [...document.querySelectorAll('#f_reps input')]
+    .map(i => ({ deudaId: i.dataset.d, monto: Number(i.value) || 0 }))
+    .filter(r => r.monto > 0);
+  const suma = reps.reduce((s,r)=>s+r.monto, 0);
+  if(suma > monto){ toast('Estás repartiendo más de lo que recibiste.'); return; }
+
+  const fecha = document.getElementById('f_fecha').value || hoy();
+  const nota = document.getElementById('f_nota').value.trim();
+  const jid = editando || uid();
+  if(editando){
+    const i = S.movs.findIndex(x => x.id === editando);
+    S.movs[i] = Object.assign({}, S.movs[i], {tipo:'jornada', fecha, monto, nota, id: jid});
+    // los abonos hijos se rehacen: es más simple y no puede desincronizarse
+    S.movs = S.movs.filter(x => x.origen !== jid);
+  } else {
+    S.movs.push({ id: jid, tipo:'jornada', fecha, monto, nota });
+  }
+  reps.forEach(r => S.movs.push({ id: uid(), tipo:'abono', fecha, monto: r.monto, deudaId: r.deudaId, nota:'', origen: jid }));
+
+  const eraNuevo = !editando;
   closeSheet(); render();
-  toast((nuevo ? 'Jornada guardada · aparté ' : 'Jornada actualizada · aparté ') + fmt(aparta));
+  toast(eraNuevo
+    ? (suma > 0 ? 'Ingreso guardado · abonaste ' + fmt(suma) : 'Ingreso guardado')
+    : 'Ingreso actualizado');
 }
+
 function addGasto(){
   const monto = Number(document.getElementById('g_monto').value);
   if(!monto || monto <= 0){ toast('Escribe cuánto gastaste.'); return; }
   const sel = document.querySelector('#g_cats .pill.on');
   const nuevo = guardarMov({ tipo:'gasto', fecha:document.getElementById('g_fecha').value || hoy(),
-    monto, aparta:0, cat: sel ? sel.dataset.c : 'Otros', nota:document.getElementById('g_nota').value.trim() });
+    monto, cat: sel ? sel.dataset.c : 'Otros', nota:document.getElementById('g_nota').value.trim() });
   closeSheet(); render();
   toast(nuevo ? 'Gasto guardado' : 'Gasto actualizado');
 }
-function addPago(){
-  const monto = Number(document.getElementById('p_monto').value);
-  if(!monto || monto <= 0){ toast('Escribe el monto pagado.'); return; }
-  const datos = { tipo:'pago', fecha:document.getElementById('p_fecha').value || hoy(), monto, aparta:0 };
-  // se guarda cuánto era la cuota ese día: Ajustes puede cambiar después.
-  // Al editar no se toca, para no reescribir la historia.
-  if(!editando) datos.cuotaObjetivo = S.cuota || monto;
-  const nuevo = guardarMov(datos);
+
+function addAbono(){
+  const monto = Number(document.getElementById('a_monto').value);
+  if(!monto || monto <= 0){ toast('Escribe cuánto abonas.'); return; }
+  const dId = document.getElementById('a_deuda').value;
+  const d = deuda(dId);
+  if(!d){ toast('Esa deuda ya no existe.'); return; }
+  const previo = editando ? (S.movs.find(x => x.id === editando) || {monto:0}).monto : 0;
+  if(monto > estadoDeuda(d).saldo + previo){ toast('Es más de lo que debes en esa deuda.'); return; }
+  const nuevo = guardarMov({ tipo:'abono', fecha:document.getElementById('a_fecha').value || hoy(),
+    monto, deudaId: dId, nota:document.getElementById('a_nota').value.trim() });
   closeSheet(); render();
-  toast(nuevo ? 'Pago registrado' : 'Pago actualizado');
+  const e = estadoDeuda(d);
+  toast(e.pagada ? '¡' + d.nombre + ' quedó pagada!' : (nuevo ? 'Abono registrado · faltan ' + fmt(e.saldo) : 'Abono actualizado'));
 }
+
+function addDeuda(){
+  const nombre = document.getElementById('d_nombre').value.trim();
+  const total = Number(document.getElementById('d_total').value);
+  const dia = Number(document.getElementById('d_dia').value);
+  if(!nombre){ toast('Ponle un nombre a la deuda.'); return; }
+  if(!total || total <= 0){ toast('Escribe el total a pagar.'); return; }
+  const sel = document.querySelector('#d_icos .pill.on');
+  const datos = { nombre, total, icono: sel ? sel.dataset.i : '🧾',
+    diaPago: Math.min(Math.max(dia||1,1),28) };
+  if(editando){
+    const i = S.deudas.findIndex(x => x.id === editando);
+    if(i > -1) S.deudas[i] = Object.assign({}, S.deudas[i], datos);
+  } else {
+    S.deudas.push(Object.assign({id: uid()}, datos));
+  }
+  const eraNuevo = !editando;
+  closeSheet(); render();
+  toast(eraNuevo ? 'Deuda creada' : 'Deuda actualizada');
+}
+
+function rmDeuda(id){
+  const d = deuda(id); if(!d) return;
+  const n = S.movs.filter(m => m.tipo==='abono' && m.deudaId===id).length;
+  const msg = n
+    ? '¿Eliminar "' + d.nombre + '"? También se borran sus ' + n + (n===1?' abono.':' abonos.')
+    : '¿Eliminar "' + d.nombre + '"?';
+  if(!confirm(msg)) return;
+  S.deudas = S.deudas.filter(x => x.id !== id);
+  S.movs = S.movs.filter(m => !(m.tipo==='abono' && m.deudaId===id));
+  render(); toast('Deuda eliminada');
+}
+
 function delMov(id){
   const m = S.movs.find(x=>x.id===id);
   if(!m) return;
-  if(!confirm('¿Eliminar este movimiento de ' + fmt(m.monto) + '?')) return;
-  S.movs = S.movs.filter(x => x.id !== id);
+  const hijos = m.tipo === 'jornada' ? repartosDe(id) : [];
+  const msg = hijos.length
+    ? '¿Eliminar este ingreso de ' + fmt(m.monto) + '? También se deshacen sus ' + hijos.length
+      + (hijos.length===1?' abono.':' abonos.')
+    : '¿Eliminar este movimiento de ' + fmt(m.monto) + '?';
+  if(!confirm(msg)) return;
+  S.movs = S.movs.filter(x => x.id !== id && x.origen !== id);
   render(); toast('Movimiento eliminado');
 }
-function saveSettings(){
-  const p = Number(document.getElementById('setPct').value);
-  const c = Number(document.getElementById('setCuota').value);
-  const d = Number(document.getElementById('setDia').value);
-  if(isNaN(p) || p < 0 || p > 100){ toast('El porcentaje va entre 0 y 100.'); return; }
-  S.pct = p; S.cuota = isNaN(c) ? 0 : c; S.diaPago = Math.min(Math.max(d||1,1),28);
-  render(); toast('Cambios guardados');
-}
+
 function addCat(){
   const el = document.getElementById('newCat');
   const v = el.value.trim();
@@ -832,6 +1073,7 @@ function rmCat(i){
   if(S.cats.length <= 1){ toast('Deja al menos una categoría.'); return; }
   S.cats.splice(i,1); render();
 }
+
 function exportData(){
   S.ultimoRespaldo = hoy();
   S.avisoOculto = null;           // el aviso ya cumplió: se reinicia, no se pospone
@@ -850,7 +1092,8 @@ function importData(ev){
     try{
       const d = JSON.parse(r.result);
       if(!d || !Array.isArray(d.movs)) throw new Error('formato');
-      S = Object.assign({}, DEFAULTS, d);
+      // una copia vieja (v1) trae cuota/pct y no trae deudas: se migra igual
+      S = Array.isArray(d.deudas) ? Object.assign({}, DEFAULTS, d) : migrarV1(d);
       S.ultimoRespaldo = hoy();   // si restauró, tiene el archivo a la mano
       S.avisoOculto = null;
       render(); toast('Datos restaurados');
@@ -859,7 +1102,7 @@ function importData(ev){
   r.readAsText(f); ev.target.value = '';
 }
 function wipe(){
-  if(!confirm('Esto borra todas las jornadas, gastos y ajustes. ¿Seguro?')) return;
+  if(!confirm('Esto borra todas las deudas, ingresos, gastos y abonos. ¿Seguro?')) return;
   if(!confirm('Última confirmación: no se puede deshacer.')) return;
   S = JSON.parse(JSON.stringify(DEFAULTS));
   render(); toast('Datos borrados');
