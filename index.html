@@ -162,6 +162,18 @@ button{cursor:pointer;border:none;background:none}
 .mv .amt small{display:block;font-size:11px;font-weight:500;color:var(--accent);letter-spacing:.02em}
 .mv .del{padding:17px 0 17px 10px;color:var(--muted);font-size:18px;line-height:1;flex:none}
 
+/* ---------- ciclos cerrados ---------- */
+/* colilla de recibo: encabezado, lo que apartaste, y el saldo que quedó */
+.ciclo{padding:14px 0;border-bottom:1px dashed var(--line)}
+.ciclo:first-child{padding-top:2px}
+.ciclo:last-child{border-bottom:none;padding-bottom:2px}
+.ciclo-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:5px}
+.ciclo-n{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ciclo-m{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:17px;font-weight:600;color:var(--gold)}
+.ciclo-d{margin:0;font-size:13.5px;color:var(--ink);line-height:1.45}
+.ciclo-s{margin:3px 0 0;font-size:12.5px;color:var(--muted);line-height:1.4}
+.ciclo-s.corto{color:var(--spend)}
+
 .empty{text-align:center;padding:44px 20px;color:var(--muted)}
 .empty p{margin:0 0 4px;font-size:15px;color:var(--ink)}
 .empty small{font-size:13.5px}
@@ -265,7 +277,7 @@ nav button.on{color:var(--ink)}
 
     <div class="stack">
       <div class="card">
-        <h3>Cuota del ciclo</h3>
+        <h3>Cuota del crédito</h3>
         <div class="meter"><i id="metaFill" style="width:0%"></i><b id="metaPct">0%</b></div>
         <div class="row"><span class="k">Acumulado</span><span class="v acc" id="mAcum">$0</span></div>
         <div class="row"><span class="k">Falta</span><span class="v gold" id="mFalta">$0</span></div>
@@ -308,6 +320,10 @@ nav button.on{color:var(--ink)}
       <h3>Movimientos</h3>
       <div id="movList"></div>
     </div>
+    <div class="card" style="margin-top:12px">
+      <h3 id="ciclosTitulo">Cuotas pagadas</h3>
+      <div id="cicloList"></div>
+    </div>
   </section>
 
   <!-- ============ AJUSTES ============ -->
@@ -320,7 +336,7 @@ nav button.on{color:var(--ink)}
       </div>
       <p class="hint">Cada vez que registres una jornada, esta parte se descuenta sola del disponible y se suma al acumulado de la cuota. Puedes cambiarla en una jornada puntual sin tocar este valor.</p>
       <div class="field">
-        <label for="setCuota">Valor de la cuota</label>
+        <label for="setCuota">Valor de la cuota del crédito</label>
         <input id="setCuota" type="number" inputmode="decimal" min="0" step="1000">
       </div>
       <div class="field">
@@ -474,6 +490,36 @@ function ocultarAviso(){
   toast('Te lo recuerdo en ' + DIAS_SNOOZE + ' días.');
 }
 
+/* Ciclos cerrados: cada pago cierra uno. NO se guardan como snapshot, se
+   derivan de los movimientos igual que totales(). Con la edición de
+   movimientos (P1-1) un histórico guardado quedaría mintiendo apenas
+   corrijas una jornada vieja; derivándolo siempre cuadra con los datos.
+   Lo único que sí se guarda en el pago es cuotaObjetivo, porque el valor
+   de la cuota en Ajustes puede cambiar y ese dato no se puede reconstruir. */
+function ciclos(){
+  const orden = S.movs.filter(m => m.tipo !== 'gasto')
+    .sort((a,b) => a.fecha.localeCompare(b.fecha) || a.id.localeCompare(b.id));
+  const out = [];
+  let arrastre = 0, apartado = 0, jornadas = 0, desde = null;
+  for(const m of orden){
+    if(m.tipo === 'jornada'){
+      apartado += m.aparta; jornadas++;
+      if(!desde) desde = m.fecha;
+    } else {
+      const disponible = arrastre + apartado;
+      out.push({
+        n: out.length + 1, id: m.id, fecha: m.fecha, desde: desde || m.fecha,
+        cuota: m.cuotaObjetivo != null ? m.cuotaObjetivo : m.monto,
+        pagado: m.monto, apartado, arrastre, jornadas,
+        sobra: disponible - m.monto
+      });
+      arrastre = disponible - m.monto;
+      apartado = 0; jornadas = 0; desde = null;
+    }
+  }
+  return out;
+}
+
 /* ---- render ---- */
 function render(){
   const { libre, apartado } = totales();
@@ -550,6 +596,7 @@ function render(){
     : 'Todavía no has descargado ninguna copia.';
 
   renderMovs();
+  renderCiclos();
   renderCats();
   document.getElementById('setPct').value = S.pct;
   document.getElementById('setCuota').value = S.cuota || '';
@@ -593,6 +640,33 @@ function renderMovs(){
       +   '<span class="amt" style="color:'+color+'">'+signo+fmt(mv.monto)+extra+'</span>'
       + '</button>'
       + '<button class="del" onclick="delMov(\''+mv.id+'\')" aria-label="Eliminar">×</button></div>';
+  }).join('');
+}
+function renderCiclos(){
+  const cs = ciclos().reverse();   // el más reciente arriba
+  document.getElementById('ciclosTitulo').textContent =
+    cs.length ? 'Cuotas pagadas · ' + cs.length : 'Cuotas pagadas';
+  const el = document.getElementById('cicloList');
+  if(!cs.length){
+    el.innerHTML = '<div class="empty"><p>Todavía no has cerrado ningún ciclo.</p>'
+      + '<small>Cuando registres el pago de tu cuota, queda aquí con sus cifras.</small></div>';
+    return;
+  }
+  el.innerHTML = cs.map(c => {
+    let d = 'Apartaste ' + fmt(c.apartado) + ' en ' + c.jornadas
+          + (c.jornadas === 1 ? ' jornada' : ' jornadas');
+    if(c.arrastre > 0) d += ', más ' + fmt(c.arrastre) + ' que venían del ciclo anterior';
+    d += '.';
+    let s = '', clase = '';
+    if(c.sobra > 0)      s = 'Te sobraron ' + fmt(c.sobra) + ' para la próxima cuota.';
+    else if(c.sobra < 0){ s = 'Pagaste ' + fmt(-c.sobra) + ' más de lo que tenías apartado.'; clase = ' corto'; }
+    if(c.cuota !== c.pagado) s += (s ? ' ' : '') + 'La cuota era de ' + fmt(c.cuota) + '.';
+    return '<div class="ciclo">'
+      + '<div class="ciclo-top"><span class="ciclo-n">Cuota ' + c.n + ' · ' + fechaCorta(c.fecha) + '</span>'
+      +   '<span class="ciclo-m">' + fmt(c.pagado) + '</span></div>'
+      + '<p class="ciclo-d">' + d + '</p>'
+      + (s ? '<p class="ciclo-s' + clase + '">' + s + '</p>' : '')
+      + '</div>';
   }).join('');
 }
 function renderCats(){
@@ -724,7 +798,11 @@ function addGasto(){
 function addPago(){
   const monto = Number(document.getElementById('p_monto').value);
   if(!monto || monto <= 0){ toast('Escribe el monto pagado.'); return; }
-  const nuevo = guardarMov({ tipo:'pago', fecha:document.getElementById('p_fecha').value || hoy(), monto, aparta:0 });
+  const datos = { tipo:'pago', fecha:document.getElementById('p_fecha').value || hoy(), monto, aparta:0 };
+  // se guarda cuánto era la cuota ese día: Ajustes puede cambiar después.
+  // Al editar no se toca, para no reescribir la historia.
+  if(!editando) datos.cuotaObjetivo = S.cuota || monto;
+  const nuevo = guardarMov(datos);
   closeSheet(); render();
   toast(nuevo ? 'Pago registrado' : 'Pago actualizado');
 }

@@ -48,14 +48,16 @@ README.md             instrucciones de despliegue e instalación
 
 Funciona hoy:
 
-- **Inicio**: saldo disponible, barra partida apartado/libre, progreso hacia la cuota,
+- **Inicio**: saldo disponible, barra partida apartado/libre, progreso hacia la cuota
+  del crédito,
   días para el pago, estimación de jornadas faltantes, resumen del mes, gastos por categoría.
 - **Registrar jornada**: monto variable + porcentaje (precargado del ajuste, editable por
   jornada) + fecha + nota. Muestra en vivo cuánto se aparta y cuánto queda.
 - **Registrar gasto**: monto + categoría (pills) + fecha + nota.
 - **Registrar pago de la cuota**: descuenta del acumulado y reinicia el ciclo.
 - **Movimientos**: navegación por mes, totales de entrada/salida, tocar una fila la abre
-  para editarla (escribe sobre el mismo `id`), eliminar con confirmación.
+  para editarla (escribe sobre el mismo `id`), eliminar con confirmación, e historial de
+  cuotas pagadas con lo apartado y las jornadas de cada ciclo.
 - **Ajustes**: porcentaje, valor de la cuota, día de pago, CRUD de categorías.
 - **Respaldo**: exportar/importar JSON, estado de la última copia, recordatorio en Inicio
   a los 15 días sin respaldar, borrar todo con doble confirmación.
@@ -82,6 +84,7 @@ Un único objeto en `localStorage` bajo la clave `jornal.v1`:
       monto: Number,   // siempre positivo
       aparta: Number,  // solo en 'jornada'; 0 en el resto
       cat: 'string',   // solo en 'gasto'
+      cuotaObjetivo: Number, // solo en 'pago', opcional: cuánto era la cuota ese día
       nota: 'string'   // opcional
     }
   ]
@@ -124,7 +127,8 @@ Funciones principales:
 - `delMes(ym)` — filtra movimientos por `YYYY-MM`
 - `diasEntre(isoA, isoB)` — días entre dos fechas `YYYY-MM-DD`
 - `avisoRespaldo()` / `ocultarAviso()` — recordatorio de copia de seguridad
-- `render()` — pinta inicio y dispara `renderMovs()` y `renderCats()`
+- `ciclos()` — deriva los ciclos cerrados (uno por pago) desde `movs`
+- `render()` — pinta inicio y dispara `renderMovs()`, `renderCiclos()` y `renderCats()`
 - `openSheet(tipo, id?)` / `closeSheet()` — hojas inferiores (jornada / gasto / pago). Con
   `id` la hoja entra en modo edición: precarga los datos y guarda sobre ese `id`
 - `editMov(id)` — abre la hoja de edición desde una fila de Movimientos
@@ -195,10 +199,15 @@ Trabaja en orden. Cada punto trae su criterio de aceptación.
    Exportar o importar ponen `ultimoRespaldo = hoy()` y limpian `avisoOculto`. Ajustes →
    Respaldo muestra cuándo fue la última copia.
 
-3. **Historial de ciclos.** Al registrar un pago, cierra el ciclo y guárdalo
-   (`{fecha, cuotaObjetivo, apartadoReal, jornadas}`). Muestra los ciclos cerrados en una
-   sección de Movimientos.
-   *Listo cuando:* después de dos pagos puede ver ambos ciclos con sus cifras.
+3. ~~**Historial de ciclos.**~~ **Hecho, con una desviación deliberada del plan.** El brief
+   pedía guardar un snapshot del ciclo al pagar; `ciclos()` lo **deriva** de los movimientos
+   igual que `totales()`. Razón: como P1-1 permite editar y borrar movimientos, un snapshot
+   guardado quedaría mintiendo apenas se corrija una jornada vieja. Derivado siempre cuadra.
+   Lo único que sí se guarda es `cuotaObjetivo` en el movimiento de pago, porque el valor de
+   la cuota en Ajustes puede cambiar y ese dato no se reconstruye. Es un campo opcional: los
+   pagos viejos caen a `monto` y no hace falta migrar.
+   Cada ciclo lleva `arrastre` (lo que sobró del anterior) para que la suma cuadre con
+   `totales().apartado`.
 
 ### P2 — Lo que lo hace más útil
 
