@@ -1,5 +1,5 @@
 // Jornal — cache local para que la app abra sin internet.
-const CACHE = 'jornal-v2';
+const CACHE = 'jornal-v3';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

@@ -64,6 +64,10 @@ Como no hay nube, si borras los datos de Safari o cambias de teléfono, se pierd
 En Ajustes → **Descargar copia de seguridad** obtienes un `.json` que puedes guardar
 en iCloud Drive o Google Drive y restaurar después con **Restaurar desde una copia**.
 
+Si pasan 15 días sin descargar una copia, aparece un aviso en Inicio con el botón a la mano.
+Puedes posponerlo con "Ahora no" y vuelve en una semana. En Ajustes siempre ves de cuándo
+es tu última copia.
+
 ## Si más adelante quieres sincronizar
 
 La estructura de datos es un arreglo plano de movimientos

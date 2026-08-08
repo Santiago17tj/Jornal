@@ -112,6 +112,18 @@ button{cursor:pointer;border:none;background:none}
   font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--ink);mix-blend-mode:luminosity;
 }
 
+/* ---------- aviso de respaldo ---------- */
+/* nota al margen del recibo, no una alarma */
+.nudge{
+  margin:26px 0 -8px;padding:13px 15px;
+  border:1px dashed var(--gold);border-radius:11px;background:rgba(169,121,31,.06);
+}
+.nudge[hidden]{display:none}
+.nudge-t{margin:0 0 10px;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.nudge-acts{display:flex;align-items:center;gap:16px}
+.nudge-go{font-size:13.5px;font-weight:600;color:var(--gold);text-decoration:underline;text-underline-offset:3px;padding:2px 0}
+.nudge-no{font-size:13.5px;color:var(--muted);padding:2px 0}
+
 /* ---------- acciones ---------- */
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:26px 0 22px}
 .btn{
@@ -238,6 +250,14 @@ nav button.on{color:var(--ink)}
       </div>
     </div>
 
+    <div class="nudge" id="nudge" hidden>
+      <p class="nudge-t" id="nudgeText"></p>
+      <div class="nudge-acts">
+        <button class="nudge-go" onclick="exportData()">Descargar copia</button>
+        <button class="nudge-no" onclick="ocultarAviso()">Ahora no</button>
+      </div>
+    </div>
+
     <div class="actions">
       <button class="btn acc" onclick="openSheet('jornada')">Registrar jornada</button>
       <button class="btn ghost" onclick="openSheet('gasto')">Registrar gasto</button>
@@ -323,6 +343,9 @@ nav button.on{color:var(--ink)}
     <div class="card" style="margin-top:12px">
       <h3>Respaldo</h3>
       <p class="hint" style="margin-top:0">Los datos viven solo en este navegador. Si borras el historial de Safari o cambias de teléfono, se pierden. Descarga una copia de vez en cuando.</p>
+      <div class="row" style="border-top:1px solid var(--line);margin-bottom:12px">
+        <span class="k" id="respaldoEstado" style="font-size:13.5px;color:var(--muted)"></span>
+      </div>
       <button class="btn ghost wide" onclick="exportData()">Descargar copia de seguridad</button>
       <button class="btn ghost wide" style="margin-top:10px" onclick="document.getElementById('impFile').click()">Restaurar desde una copia</button>
       <input type="file" id="impFile" accept="application/json" style="display:none" onchange="importData(event)">
@@ -370,8 +393,12 @@ const DEFAULTS = {
   cuota: 0,
   diaPago: 5,
   cats: ['Transporte', 'Comida', 'Universidad', 'Casa', 'Otros'],
-  movs: []   // {id, tipo:'jornada'|'gasto'|'pago', fecha:'YYYY-MM-DD', monto, aparta, nota, cat}
+  movs: [],           // {id, tipo:'jornada'|'gasto'|'pago', fecha:'YYYY-MM-DD', monto, aparta, nota, cat}
+  ultimoRespaldo: null,  // 'YYYY-MM-DD' de la última copia descargada o restaurada
+  avisoOculto: null      // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
 };
+const DIAS_RESPALDO = 15;   // a partir de aquí se recuerda descargar copia
+const DIAS_SNOOZE   = 7;    // cuánto calla el aviso al descartarlo
 
 /* ---- almacenamiento tolerante a fallos (algunos previews bloquean localStorage) ---- */
 let memoria = null;
@@ -399,6 +426,9 @@ function fechaCorta(iso){
   const [y,m,d] = iso.split('-').map(Number);
   return d + ' ' + MESES[m-1].slice(0,3);
 }
+/* días entre dos fechas 'YYYY-MM-DD'. El 'T00:00:00' evita que Safari
+   las lea como UTC y el resultado se corra un día. */
+const diasEntre = (a,b) => Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00'))/86400000);
 function toast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('on');
@@ -425,6 +455,23 @@ function proximoPago(){
 }
 function delMes(ym){
   return S.movs.filter(m => m.fecha.slice(0,7) === ym);
+}
+
+/* Recordatorio de respaldo. Devuelve {dias, nunca} si toca avisar, o null.
+   Si nunca ha respaldado, cuenta desde el movimiento más viejo: lo que está
+   en riesgo es la antigüedad de los datos, no la de la app. */
+function avisoRespaldo(){
+  if(!S.movs.length) return null;                       // sin datos no hay nada que perder
+  const h = hoy();
+  if(S.avisoOculto && diasEntre(S.avisoOculto, h) < DIAS_SNOOZE) return null;
+  const desde = S.ultimoRespaldo || S.movs.reduce((a,m) => m.fecha < a ? m.fecha : a, S.movs[0].fecha);
+  const dias = diasEntre(desde, h);
+  return dias >= DIAS_RESPALDO ? { dias, nunca: !S.ultimoRespaldo } : null;
+}
+function ocultarAviso(){
+  S.avisoOculto = hoy();
+  render();
+  toast('Te lo recuerdo en ' + DIAS_SNOOZE + ' días.');
 }
 
 /* ---- render ---- */
@@ -487,6 +534,20 @@ function render(){
   document.getElementById('cardCats').style.display = entries.length ? '' : 'none';
   document.getElementById('catList').innerHTML = entries.map(([c,v]) =>
     '<div class="row"><span class="k">'+esc(c)+'</span><span class="v spend">'+fmt(v)+'</span></div>').join('');
+
+  // recordatorio de respaldo
+  const av = avisoRespaldo();
+  document.getElementById('nudge').hidden = !av;
+  if(av){
+    document.getElementById('nudgeText').textContent = av.nunca
+      ? 'Llevas ' + av.dias + ' días de registros y ninguna copia de seguridad.'
+      : 'Tu última copia es de hace ' + av.dias + ' días.';
+  }
+  const dr = S.ultimoRespaldo ? diasEntre(S.ultimoRespaldo, hoy()) : null;
+  document.getElementById('respaldoEstado').textContent = S.ultimoRespaldo
+    ? 'Última copia: ' + (dr === 0 ? 'hoy' : dr === 1 ? 'ayer' : 'hace ' + dr + ' días') +
+      (dr > 1 ? ' · ' + fechaCorta(S.ultimoRespaldo) : '')
+    : 'Todavía no has descargado ninguna copia.';
 
   renderMovs();
   renderCats();
@@ -694,11 +755,14 @@ function rmCat(i){
   S.cats.splice(i,1); render();
 }
 function exportData(){
+  S.ultimoRespaldo = hoy();
+  S.avisoOculto = null;           // el aviso ya cumplió: se reinicia, no se pospone
   const blob = new Blob([JSON.stringify(S,null,2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'jornal-' + hoy() + '.json';
   a.click(); URL.revokeObjectURL(a.href);
+  render();
   toast('Copia descargada');
 }
 function importData(ev){
@@ -709,6 +773,8 @@ function importData(ev){
       const d = JSON.parse(r.result);
       if(!d || !Array.isArray(d.movs)) throw new Error('formato');
       S = Object.assign({}, DEFAULTS, d);
+      S.ultimoRespaldo = hoy();   // si restauró, tiene el archivo a la mano
+      S.avisoOculto = null;
       render(); toast('Datos restaurados');
     }catch(e){ toast('Ese archivo no es una copia de Jornal.'); }
   };

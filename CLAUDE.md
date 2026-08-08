@@ -57,7 +57,8 @@ Funciona hoy:
 - **Movimientos**: navegación por mes, totales de entrada/salida, tocar una fila la abre
   para editarla (escribe sobre el mismo `id`), eliminar con confirmación.
 - **Ajustes**: porcentaje, valor de la cuota, día de pago, CRUD de categorías.
-- **Respaldo**: exportar/importar JSON, borrar todo con doble confirmación.
+- **Respaldo**: exportar/importar JSON, estado de la última copia, recordatorio en Inicio
+  a los 15 días sin respaldar, borrar todo con doble confirmación.
 
 ---
 
@@ -71,6 +72,8 @@ Un único objeto en `localStorage` bajo la clave `jornal.v1`:
   cuota: 0,         // valor de la cuota del ciclo
   diaPago: 5,       // día del mes en que paga (se limita a 1..28)
   cats: ['Transporte', 'Comida', ...],
+  ultimoRespaldo: null,  // 'YYYY-MM-DD' de la última copia descargada o restaurada
+  avisoOculto: null,     // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
   movs: [
     {
       id: 'string único',
@@ -99,7 +102,9 @@ guardar información que ya está en los datos.
 
 Si cambias la forma de los datos, **incrementa la clave** (`jornal.v2`) y escribe una
 migración que lea `jornal.v1` y lo convierta. Nunca dejes que un usuario con datos viejos
-abra la app y vea todo en cero.
+abra la app y vea todo en cero. Agregar un campo *opcional* en la raíz (como
+`ultimoRespaldo`) no cuenta: `load()` hace `Object.assign({}, DEFAULTS, guardado)`, así que
+un archivo viejo lo recibe con su valor por defecto. Cambiar la forma de `movs` sí cuenta.
 
 `load()` y `save()` están envueltos en `try/catch` con fallback a una variable en memoria,
 porque algunos entornos de previsualización bloquean `localStorage`. Mantén ese patrón.
@@ -117,6 +122,8 @@ Funciones principales:
 - `totales()` — el invariante de arriba
 - `proximoPago()` — fecha y días restantes hasta el día de pago
 - `delMes(ym)` — filtra movimientos por `YYYY-MM`
+- `diasEntre(isoA, isoB)` — días entre dos fechas `YYYY-MM-DD`
+- `avisoRespaldo()` / `ocultarAviso()` — recordatorio de copia de seguridad
 - `render()` — pinta inicio y dispara `renderMovs()` y `renderCats()`
 - `openSheet(tipo, id?)` / `closeSheet()` — hojas inferiores (jornada / gasto / pago). Con
   `id` la hoja entra en modo edición: precarga los datos y guarda sobre ese `id`
@@ -181,10 +188,12 @@ Trabaja en orden. Cada punto trae su criterio de aceptación.
    jornada, no con el de Ajustes. Verificado: los totales cuadran y no se duplican
    movimientos.
 
-2. **Recordatorio de respaldo.** Al ser local, el riesgo real es perder todo. Guarda
-   `ultimoRespaldo` en el estado y si pasaron más de 15 días, muestra un aviso discreto en
-   Inicio con acción directa a exportar.
-   *Listo cuando:* el aviso aparece, se puede descartar, y exportar lo reinicia.
+2. ~~**Recordatorio de respaldo.**~~ **Hecho.** `avisoRespaldo()` muestra una nota discreta
+   en Inicio pasados 15 días (`DIAS_RESPALDO`). Si nunca respaldó, cuenta desde el
+   movimiento más viejo; con la app vacía no aparece. "Ahora no" lo pospone 7 días
+   (`DIAS_SNOOZE`), no lo apaga para siempre: el riesgo no desaparece porque lo descarten.
+   Exportar o importar ponen `ultimoRespaldo = hoy()` y limpian `avisoOculto`. Ajustes →
+   Respaldo muestra cuándo fue la última copia.
 
 3. **Historial de ciclos.** Al registrar un pago, cierra el ciclo y guárdalo
    (`{fecha, cuotaObjetivo, apartadoReal, jornadas}`). Muestra los ciclos cerrados en una
