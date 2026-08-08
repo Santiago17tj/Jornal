@@ -155,6 +155,17 @@ Mantenlo: es la única defensa contra inyección en esta app.
 `foco()` comprueba que el campo siga en el DOM antes de enfocarlo: si la hoja se cierra antes
 de los 260 ms de la animación, el cuerpo ya fue reemplazado. No vuelvas al `setTimeout` pelado.
 
+**Actualización automática.** Al final del script, el registro del service worker escucha
+`updatefound` y recarga la página cuando el worker nuevo llega a `activated`. Sin esto, la app
+instalada en el iPhone se queda mostrando la versión vieja hasta que alguien borre la caché a
+mano. La comprobación de "¿es actualización o instalación inicial?" mira
+`navigator.serviceWorker.controller` **dentro** de `updatefound`, no al cargar el script: leerlo
+al arrancar da un valor congelado que bloquea las actualizaciones de esa misma sesión. Ya se
+cometió ese error una vez.
+
+**Sube `CACHE` en `sw.js` en cada publicación.** El `activate` borra las cachés que no
+coincidan; si no lo subes, la caché vieja sobrevive.
+
 ---
 
 ## 6. Sistema de diseño — respétalo
@@ -257,6 +268,9 @@ Validaciones mínimas antes de dar algo por terminado:
 - Prueba en modo avión que la app abre y guarda.
 - Exporta, borra todo, importa: los datos deben volver idénticos.
 - Abre y cierra hojas de inmediato: no debe reventar ningún foco diferido.
+- Actualización automática: con la app abierta y el service worker ya instalado, sube `CACHE`
+  en `sw.js` y llama `navigator.serviceWorker.getRegistration().then(r=>r.update())`. La página
+  debe recargarse sola. En una instalación desde cero **no** debe recargarse (sería un bucle).
 
 ---
 

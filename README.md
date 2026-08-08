@@ -69,6 +69,11 @@ También puedes abonar suelto desde la tarjeta de la deuda, sin registrar un ing
 Los avisos solo aparecen **con la app abierta**. Notificaciones con la app cerrada no son
 posibles sin un servidor, y esta app no tiene ninguno a propósito.
 
+## Cuando publicas una versión nueva
+
+La app se actualiza sola: al abrirla con internet detecta la versión nueva y se recarga.
+No hay que borrar cachés ni reinstalar el ícono.
+
 ## Corregir algo que registraste mal
 
 En **Movimientos**, toca la fila. Se abre con los datos que tiene y los puedes cambiar.

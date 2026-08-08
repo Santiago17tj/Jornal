@@ -1111,7 +1111,31 @@ function wipe(){
 /* ---- arranque ---- */
 render();
 if('serviceWorker' in navigator){
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  /* Cuando se publica una versión nueva, el service worker entra con
+     skipWaiting + clients.claim. Aquí se detecta y se recarga sola: si no, la
+     app instalada en el iPhone se queda mostrando la versión vieja hasta que
+     alguien borre la caché a mano.
+
+     La comprobación de "¿es una actualización o la instalación inicial?" va
+     dentro de 'updatefound', no al arrancar el script: en la primera visita
+     todavía no hay controlador en ese instante, y en una actualización sí.
+     Mirarlo al cargar la página daría un valor congelado que bloquearía las
+     actualizaciones que lleguen en esa misma sesión. */
+  let recargando = false;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const nuevo = reg.installing;
+        if(!nuevo || !navigator.serviceWorker.controller) return;   // instalación inicial
+        nuevo.addEventListener('statechange', () => {
+          if(nuevo.state === 'activated' && !recargando){
+            recargando = true;
+            location.reload();
+          }
+        });
+      });
+    }).catch(()=>{});
+  });
 }
 </script>
 </body>
