@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Jornal</title>
+<meta name="description" content="Control de jornadas, apartado automático y gastos.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#12241C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jornal">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --ink:#12241C;
+  --paper:#EDEBE1;
+  --card:#FBFAF6;
+  --accent:#17694F;
+  --accent-soft:#DCE9E2;
+  --spend:#9A2B2B;
+  --gold:#A9791F;
+  --muted:#66746B;
+  --line:#DAD6C9;
+  --display:"Avenir Next","Avenir",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--display);
+  background:var(--paper);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  font-size:16px;
+  overscroll-behavior-y:none;
+}
+button,input,select,textarea{font-family:inherit;font-size:16px;color:inherit}
+button{cursor:pointer;border:none;background:none}
+
+/* ---------- estructura ---------- */
+.app{
+  max-width:520px;margin:0 auto;
+  padding:calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 96px);
+}
+.brand{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px}
+.brand h1{
+  font-size:22px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;margin:0;
+}
+.brand .cycle{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+.view{display:none;animation:rise .22s ease-out}
+.view.on{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---------- recibo ---------- */
+.receipt{
+  position:relative;background:var(--card);
+  border:1px solid var(--line);border-bottom:none;
+  border-radius:var(--r) var(--r) 0 0;
+  padding:22px 20px 18px;
+  box-shadow:0 1px 0 rgba(18,36,28,.04);
+}
+.receipt::after{
+  content:"";position:absolute;left:-1px;right:-1px;bottom:-11px;height:12px;
+  background:
+    linear-gradient(135deg,var(--card) 34%,transparent 34%) 0 0/14px 12px repeat-x,
+    linear-gradient(-135deg,var(--card) 34%,transparent 34%) 0 0/14px 12px repeat-x;
+  filter:drop-shadow(0 1px 0 var(--line));
+}
+.receipt + .stack{margin-top:26px}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 6px;
+}
+.big{
+  font-family:var(--mono);font-size:40px;font-weight:600;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;margin:0;line-height:1.05;
+}
+.big.neg{color:var(--spend)}
+.sub{font-size:13.5px;color:var(--muted);margin:8px 0 0}
+
+/* barra partida: lo que se aparta / lo que queda */
+.split{display:flex;height:9px;margin:20px 0 14px;border-radius:5px;overflow:hidden;background:#E7E4D9}
+.split i{display:block;height:100%}
+.split .a{background:var(--accent)}
+.split .b{background:#C9C4B4}
+.legend{display:flex;gap:18px;font-size:12.5px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:3px;display:inline-block}
+
+/* ---------- tarjetas ---------- */
+.stack{display:grid;gap:12px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;
+}
+.card h3{margin:0 0 12px;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0}
+.row + .row{border-top:1px dashed var(--line)}
+.row .k{font-size:14.5px}
+.row .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;font-weight:600}
+.v.acc{color:var(--accent)}
+.v.spend{color:var(--spend)}
+.v.gold{color:var(--gold)}
+
+/* meta */
+.meter{height:26px;border:1px solid var(--line);border-radius:6px;background:#E7E4D9;position:relative;overflow:hidden;margin:4px 0 10px}
+.meter i{position:absolute;inset:0 auto 0 0;background:var(--accent);transition:width .4s cubic-bezier(.2,.8,.2,1)}
+.meter b{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--ink);mix-blend-mode:luminosity;
+}
+
+/* ---------- acciones ---------- */
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:26px 0 22px}
+.btn{
+  border-radius:12px;padding:15px 12px;font-weight:600;font-size:15px;
+  border:1px solid var(--ink);background:var(--ink);color:#F7F6F1;
+  transition:transform .12s ease,opacity .12s ease;
+}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line);background:var(--card)}
+.btn.wide{width:100%}
+.btn.danger{background:transparent;border-color:#D9BDBD;color:var(--spend)}
+.btn.acc{background:var(--accent);border-color:var(--accent)}
+
+/* ---------- movimientos ---------- */
+.mv{display:flex;gap:0;align-items:flex-start;border-bottom:1px dashed var(--line)}
+.mv:last-child{border-bottom:none}
+/* zona tocable de la fila: abre la hoja de edición. El padding vive aquí y no en
+   .mv para que el área de toque cubra el alto completo de la fila. */
+.mvmain{
+  flex:1;min-width:0;display:flex;gap:12px;align-items:flex-start;
+  padding:13px 0;text-align:left;font:inherit;color:inherit;border-radius:9px;
+}
+.mvmain:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.mvmain:active{opacity:.6}
+.tag{
+  flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  font-family:var(--mono);font-size:13px;font-weight:700;
+}
+.tag.j{background:var(--accent-soft);color:var(--accent)}
+.tag.g{background:#F0DEDE;color:var(--spend)}
+.tag.p{background:#F2E6CC;color:var(--gold)}
+.mv .body{flex:1;min-width:0}
+.mv .t{display:block;font-size:15px;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mv .d{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em}
+.mv .amt{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;font-size:15px;text-align:right;flex:none}
+.mv .amt small{display:block;font-size:11px;font-weight:500;color:var(--accent);letter-spacing:.02em}
+.mv .del{padding:17px 0 17px 10px;color:var(--muted);font-size:18px;line-height:1;flex:none}
+
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty p{margin:0 0 4px;font-size:15px;color:var(--ink)}
+.empty small{font-size:13.5px}
+
+.monthbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:6px}
+.monthbar button{font-family:var(--mono);font-size:15px;color:var(--muted);padding:6px 10px}
+.monthbar b{font-size:14px;letter-spacing:.05em;text-transform:uppercase}
+
+/* ---------- formularios ---------- */
+label{display:block;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.field{margin-bottom:16px}
+input,select{
+  width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:11px;
+  background:#fff;appearance:none;
+}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.01em}
+.hint{font-size:12.5px;color:var(--muted);margin:-8px 0 16px;line-height:1.45}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{
+  border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 14px;font-size:14px;
+}
+.pill.on{background:var(--ink);color:#F7F6F1;border-color:var(--ink)}
+
+/* ---------- hoja inferior ---------- */
+.sheet{
+  position:fixed;inset:0;z-index:40;display:none;
+}
+.sheet.on{display:block}
+.sheet .scrim{position:absolute;inset:0;background:rgba(18,36,28,.42);animation:fade .2s ease}
+.sheet .panel{
+  position:absolute;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;
+  background:var(--paper);border-radius:20px 20px 0 0;
+  padding:10px 18px calc(env(safe-area-inset-bottom) + 20px);
+  max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  animation:up .26s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.grab{width:38px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
+.sheet h2{font-size:19px;margin:0 0 18px;font-weight:600}
+
+/* ---------- barra inferior ---------- */
+nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  background:rgba(237,235,225,.92);backdrop-filter:saturate(180%) blur(14px);
+  border-top:1px solid var(--line);
+  padding:8px 0 calc(env(safe-area-inset-bottom) + 6px);
+}
+nav .inner{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr)}
+nav button{
+  display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;
+  font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;
+}
+nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+nav button.on{color:var(--ink)}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 84px);transform:translateX(-50%) translateY(8px);
+  background:var(--ink);color:#F7F6F1;padding:11px 18px;border-radius:11px;font-size:14px;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:88vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.foot{text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:26px;letter-spacing:.05em}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="brand">
+    <h1>Jornal</h1>
+    <span class="cycle" id="cycleLabel"></span>
+  </div>
+
+  <!-- ============ INICIO ============ -->
+  <section class="view on" id="v-inicio">
+    <div class="receipt">
+      <p class="eyebrow">Disponible para gastar</p>
+      <p class="big" id="disponible">$0</p>
+      <p class="sub" id="dispSub">Registra tu primera jornada para empezar.</p>
+      <div class="split"><i class="a" id="splitA" style="width:0"></i><i class="b" id="splitB" style="width:100%"></i></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--accent)"></i> Apartado <b id="legA" style="font-family:var(--mono)">$0</b></span>
+        <span><i class="dot" style="background:#C9C4B4"></i> Libre <b id="legB" style="font-family:var(--mono)">$0</b></span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn acc" onclick="openSheet('jornada')">Registrar jornada</button>
+      <button class="btn ghost" onclick="openSheet('gasto')">Registrar gasto</button>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <h3>Cuota del ciclo</h3>
+        <div class="meter"><i id="metaFill" style="width:0%"></i><b id="metaPct">0%</b></div>
+        <div class="row"><span class="k">Acumulado</span><span class="v acc" id="mAcum">$0</span></div>
+        <div class="row"><span class="k">Falta</span><span class="v gold" id="mFalta">$0</span></div>
+        <div class="row"><span class="k" id="mDiasK">Días para el pago</span><span class="v" id="mDias">—</span></div>
+        <div class="row"><span class="k">Jornadas estimadas para completar</span><span class="v" id="mJor">—</span></div>
+        <button class="btn ghost wide" style="margin-top:14px" onclick="openSheet('pago')">Registrar pago de la cuota</button>
+      </div>
+
+      <div class="card">
+        <h3 id="mesTitulo">Este mes</h3>
+        <div class="row"><span class="k">Jornadas trabajadas</span><span class="v" id="sJor">0</span></div>
+        <div class="row"><span class="k">Recibido</span><span class="v" id="sRecibido">$0</span></div>
+        <div class="row"><span class="k">Apartado</span><span class="v acc" id="sApartado">$0</span></div>
+        <div class="row"><span class="k">Gastado</span><span class="v spend" id="sGastado">$0</span></div>
+        <div class="row"><span class="k">Promedio por jornada</span><span class="v" id="sProm">$0</span></div>
+      </div>
+
+      <div class="card" id="cardCats" style="display:none">
+        <h3>Gastos por categoría</h3>
+        <div id="catList"></div>
+      </div>
+    </div>
+    <p class="foot">Todo se guarda solo en este teléfono.</p>
+  </section>
+
+  <!-- ============ MOVIMIENTOS ============ -->
+  <section class="view" id="v-mov">
+    <div class="card">
+      <div class="monthbar">
+        <button onclick="shiftMonth(-1)" aria-label="Mes anterior">&#8592;</button>
+        <b id="mvMes"></b>
+        <button onclick="shiftMonth(1)" aria-label="Mes siguiente">&#8594;</button>
+      </div>
+      <div class="row" style="border-top:1px solid var(--line);margin-top:6px">
+        <span class="k">Entró</span><span class="v acc" id="mvIn">$0</span>
+      </div>
+      <div class="row"><span class="k">Salió</span><span class="v spend" id="mvOut">$0</span></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>Movimientos</h3>
+      <div id="movList"></div>
+    </div>
+  </section>
+
+  <!-- ============ AJUSTES ============ -->
+  <section class="view" id="v-ajustes">
+    <div class="card">
+      <h3>Regla de apartado</h3>
+      <div class="field">
+        <label for="setPct">Porcentaje que aparto de cada jornada</label>
+        <input id="setPct" type="number" inputmode="decimal" min="0" max="100" step="1">
+      </div>
+      <p class="hint">Cada vez que registres una jornada, esta parte se descuenta sola del disponible y se suma al acumulado de la cuota. Puedes cambiarla en una jornada puntual sin tocar este valor.</p>
+      <div class="field">
+        <label for="setCuota">Valor de la cuota</label>
+        <input id="setCuota" type="number" inputmode="decimal" min="0" step="1000">
+      </div>
+      <div class="field">
+        <label for="setDia">Día del mes en que pagas</label>
+        <input id="setDia" type="number" inputmode="numeric" min="1" max="31">
+      </div>
+      <button class="btn wide" onclick="saveSettings()">Guardar cambios</button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Categorías de gasto</h3>
+      <div class="pills" id="catEdit"></div>
+      <div class="field" style="margin-top:14px">
+        <label for="newCat">Agregar categoría</label>
+        <input id="newCat" type="text" placeholder="Transporte, almuerzo, fotocopias…">
+      </div>
+      <button class="btn ghost wide" onclick="addCat()">Agregar</button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Respaldo</h3>
+      <p class="hint" style="margin-top:0">Los datos viven solo en este navegador. Si borras el historial de Safari o cambias de teléfono, se pierden. Descarga una copia de vez en cuando.</p>
+      <button class="btn ghost wide" onclick="exportData()">Descargar copia de seguridad</button>
+      <button class="btn ghost wide" style="margin-top:10px" onclick="document.getElementById('impFile').click()">Restaurar desde una copia</button>
+      <input type="file" id="impFile" accept="application/json" style="display:none" onchange="importData(event)">
+      <button class="btn danger wide" style="margin-top:10px" onclick="wipe()">Borrar todos los datos</button>
+    </div>
+    <p class="foot">Jornal · versión 1.0</p>
+  </section>
+</div>
+
+<!-- ============ HOJAS ============ -->
+<div class="sheet" id="sheet">
+  <div class="scrim" onclick="closeSheet()"></div>
+  <div class="panel">
+    <div class="grab"></div>
+    <h2 id="sheetTitle"></h2>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<nav>
+  <div class="inner">
+    <button class="on" data-v="inicio" onclick="go('inicio')">
+      <svg viewBox="0 0 24 24"><path d="M4 9.5 12 4l8 5.5V20H4z"/><path d="M9.5 20v-6h5v6"/></svg>Inicio
+    </button>
+    <button data-v="mov" onclick="go('mov')">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Movimientos
+    </button>
+    <button data-v="ajustes" onclick="go('ajustes')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg>Ajustes
+    </button>
+  </div>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Jornal — control de jornadas, apartado y gastos.
+   Datos 100% locales (localStorage), sin red, sin cuentas.
+   ============================================================ */
+
+const KEY = 'jornal.v1';
+const DEFAULTS = {
+  pct: 30,
+  cuota: 0,
+  diaPago: 5,
+  cats: ['Transporte', 'Comida', 'Universidad', 'Casa', 'Otros'],
+  movs: []   // {id, tipo:'jornada'|'gasto'|'pago', fecha:'YYYY-MM-DD', monto, aparta, nota, cat}
+};
+
+/* ---- almacenamiento tolerante a fallos (algunos previews bloquean localStorage) ---- */
+let memoria = null;
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    return raw ? Object.assign({}, DEFAULTS, JSON.parse(raw)) : Object.assign({}, DEFAULTS);
+  }catch(e){
+    if(!memoria) memoria = Object.assign({}, DEFAULTS);
+    return memoria;
+  }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch(e){ memoria = S; }
+}
+let S = load();
+
+/* ---- utilidades ---- */
+const fmt = n => '$' + Math.round(n||0).toLocaleString('es-CO');
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const hoy = () => new Date().toISOString().slice(0,10);
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fechaCorta(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  return d + ' ' + MESES[m-1].slice(0,3);
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2200);
+}
+function esc(s){ return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---- cálculos ---- */
+function totales(){
+  let libre = 0, apartado = 0;
+  for(const m of S.movs){
+    if(m.tipo === 'jornada'){ apartado += m.aparta; libre += m.monto - m.aparta; }
+    else if(m.tipo === 'gasto'){ libre -= m.monto; }
+    else if(m.tipo === 'pago'){ apartado -= m.monto; }
+  }
+  return { libre, apartado };
+}
+function proximoPago(){
+  const n = new Date(); n.setHours(0,0,0,0);
+  const dia = Math.min(Math.max(S.diaPago||1,1),28);
+  let f = new Date(n.getFullYear(), n.getMonth(), dia);
+  if(f < n) f = new Date(n.getFullYear(), n.getMonth()+1, dia);
+  return { fecha:f, dias: Math.round((f - n)/86400000) };
+}
+function delMes(ym){
+  return S.movs.filter(m => m.fecha.slice(0,7) === ym);
+}
+
+/* ---- render ---- */
+function render(){
+  const { libre, apartado } = totales();
+  document.getElementById('disponible').textContent = fmt(libre);
+  document.getElementById('disponible').classList.toggle('neg', libre < 0);
+
+  const total = Math.max(libre,0) + Math.max(apartado,0);
+  const pa = total > 0 ? (Math.max(apartado,0)/total*100) : 0;
+  document.getElementById('splitA').style.width = pa + '%';
+  document.getElementById('splitB').style.width = (100-pa) + '%';
+  document.getElementById('legA').textContent = fmt(apartado);
+  document.getElementById('legB').textContent = fmt(libre);
+
+  const pp = proximoPago();
+  document.getElementById('cycleLabel').textContent = 'PAGO · ' + pp.fecha.getDate() + ' ' + MESES[pp.fecha.getMonth()].toUpperCase().slice(0,3);
+
+  const cuota = S.cuota || 0;
+  const pct = cuota > 0 ? Math.min(apartado/cuota*100, 100) : 0;
+  document.getElementById('metaFill').style.width = Math.max(pct,0) + '%';
+  document.getElementById('metaPct').textContent = cuota > 0 ? Math.round(pct) + '%' : 'define la cuota en Ajustes';
+  document.getElementById('mAcum').textContent = fmt(apartado);
+  const falta = Math.max(cuota - apartado, 0);
+  document.getElementById('mFalta').textContent = cuota > 0 ? fmt(falta) : '—';
+  document.getElementById('mDias').textContent = pp.dias === 0 ? 'hoy' : pp.dias + ' días';
+
+  // promedio de apartado por jornada (últimas 8 jornadas)
+  const js = S.movs.filter(m => m.tipo === 'jornada').sort((a,b)=> b.fecha.localeCompare(a.fecha)).slice(0,8);
+  const promAp = js.length ? js.reduce((s,m)=>s+m.aparta,0)/js.length : 0;
+  document.getElementById('mJor').textContent =
+    (falta > 0 && promAp > 0) ? '≈ ' + Math.ceil(falta/promAp) : (falta === 0 && cuota > 0 ? 'completa' : '—');
+
+  const subs = [];
+  if(cuota > 0 && falta > 0 && promAp > 0){
+    subs.push('Te faltan ' + fmt(falta) + ' para la cuota.');
+  } else if(cuota > 0 && falta === 0){
+    subs.push('Ya tienes la cuota completa.');
+  }
+  document.getElementById('dispSub').textContent = subs[0] || 'Este saldo ya tiene descontado lo que apartaste.';
+
+  // resumen del mes actual
+  const ym = hoy().slice(0,7);
+  const mm = delMes(ym);
+  const jor = mm.filter(m=>m.tipo==='jornada');
+  const recibido = jor.reduce((s,m)=>s+m.monto,0);
+  const apart = jor.reduce((s,m)=>s+m.aparta,0);
+  const gast = mm.filter(m=>m.tipo==='gasto').reduce((s,m)=>s+m.monto,0);
+  document.getElementById('mesTitulo').textContent = MESES[Number(ym.slice(5,7))-1];
+  document.getElementById('sJor').textContent = jor.length;
+  document.getElementById('sRecibido').textContent = fmt(recibido);
+  document.getElementById('sApartado').textContent = fmt(apart);
+  document.getElementById('sGastado').textContent = fmt(gast);
+  document.getElementById('sProm').textContent = jor.length ? fmt(recibido/jor.length) : '$0';
+
+  // gastos por categoría
+  const porCat = {};
+  mm.filter(m=>m.tipo==='gasto').forEach(m => porCat[m.cat||'Otros'] = (porCat[m.cat||'Otros']||0) + m.monto);
+  const entries = Object.entries(porCat).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('cardCats').style.display = entries.length ? '' : 'none';
+  document.getElementById('catList').innerHTML = entries.map(([c,v]) =>
+    '<div class="row"><span class="k">'+esc(c)+'</span><span class="v spend">'+fmt(v)+'</span></div>').join('');
+
+  renderMovs();
+  renderCats();
+  document.getElementById('setPct').value = S.pct;
+  document.getElementById('setCuota').value = S.cuota || '';
+  document.getElementById('setDia').value = S.diaPago;
+  save();
+}
+
+let mesVista = hoy().slice(0,7);
+function shiftMonth(d){
+  let [y,m] = mesVista.split('-').map(Number);
+  m += d; if(m > 12){m = 1; y++;} if(m < 1){m = 12; y--;}
+  mesVista = y + '-' + String(m).padStart(2,'0');
+  renderMovs();
+}
+function renderMovs(){
+  const [y,m] = mesVista.split('-').map(Number);
+  document.getElementById('mvMes').textContent = MESES[m-1] + ' ' + y;
+  const list = delMes(mesVista).sort((a,b)=> b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id));
+  const inn = list.filter(x=>x.tipo==='jornada').reduce((s,x)=>s+x.monto,0);
+  const out = list.filter(x=>x.tipo!=='jornada').reduce((s,x)=>s+x.monto,0);
+  document.getElementById('mvIn').textContent = fmt(inn);
+  document.getElementById('mvOut').textContent = fmt(out);
+
+  const el = document.getElementById('movList');
+  if(!list.length){
+    el.innerHTML = '<div class="empty"><p>Sin movimientos este mes.</p><small>Registra una jornada o un gasto desde Inicio.</small></div>';
+    return;
+  }
+  el.innerHTML = list.map(mv => {
+    const cls = mv.tipo === 'jornada' ? 'j' : (mv.tipo === 'gasto' ? 'g' : 'p');
+    const letra = mv.tipo === 'jornada' ? 'J' : (mv.tipo === 'gasto' ? 'G' : 'C');
+    const titulo = mv.nota || (mv.tipo==='jornada' ? 'Jornada' : mv.tipo==='gasto' ? (mv.cat||'Gasto') : 'Pago de la cuota');
+    const signo = mv.tipo === 'jornada' ? '+' : '−';
+    const color = mv.tipo === 'jornada' ? 'var(--accent)' : (mv.tipo==='gasto' ? 'var(--spend)' : 'var(--gold)');
+    const extra = mv.tipo === 'jornada' ? '<small>aparté ' + fmt(mv.aparta) + '</small>' : '';
+    const meta = mv.tipo === 'gasto' && mv.cat ? ' · ' + esc(mv.cat) : '';
+    return '<div class="mv">'
+      + '<button class="mvmain" onclick="editMov(\''+mv.id+'\')" aria-label="Editar '+esc(titulo)+'">'
+      +   '<span class="tag '+cls+'">'+letra+'</span>'
+      +   '<span class="body"><span class="t">'+esc(titulo)+'</span><span class="d">'+fechaCorta(mv.fecha)+meta+'</span></span>'
+      +   '<span class="amt" style="color:'+color+'">'+signo+fmt(mv.monto)+extra+'</span>'
+      + '</button>'
+      + '<button class="del" onclick="delMov(\''+mv.id+'\')" aria-label="Eliminar">×</button></div>';
+  }).join('');
+}
+function renderCats(){
+  document.getElementById('catEdit').innerHTML = S.cats.map((c,i) =>
+    '<button class="pill" onclick="rmCat('+i+')">'+esc(c)+' &nbsp;×</button>').join('');
+}
+
+/* ---- navegación ---- */
+function go(v){
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'v-'+v));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  window.scrollTo({top:0});
+}
+
+/* ---- hojas ---- */
+/* id del movimiento que se está editando; null cuando la hoja crea uno nuevo */
+let editando = null;
+
+/* El porcentaje no se guarda en el movimiento: se deduce de lo que se apartó.
+   Así una jornada editada conserva SU porcentaje, no el de los ajustes. */
+const pctDe = m => m.monto > 0 ? Math.round(m.aparta / m.monto * 1000) / 10 : S.pct;
+
+function editMov(id){
+  const m = S.movs.find(x => x.id === id);
+  if(m) openSheet(m.tipo, id);
+}
+
+function openSheet(tipo, id){
+  const m = id ? S.movs.find(x => x.id === id) : null;
+  editando = m ? id : null;
+  const t = document.getElementById('sheetTitle');
+  const b = document.getElementById('sheetBody');
+  if(tipo === 'jornada'){
+    t.textContent = m ? 'Editar jornada' : 'Registrar jornada';
+    b.innerHTML = `
+      <div class="field"><label for="f_monto">Cuánto recibiste</label>
+        <input id="f_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
+      <div class="field"><label for="f_pct">Porcentaje a apartar</label>
+        <input id="f_pct" type="number" inputmode="decimal" min="0" max="100" value="${m ? pctDe(m) : S.pct}"></div>
+      <p class="hint" id="f_prev">De este monto se apartará automáticamente lo que corresponda.</p>
+      <div class="field"><label for="f_fecha">Fecha</label>
+        <input id="f_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
+      <div class="field"><label for="f_nota">Nota (opcional)</label>
+        <input id="f_nota" type="text" placeholder="Turno del sábado, arreglo de equipo…" value="${m ? esc(m.nota) : ''}"></div>
+      <button class="btn acc wide" onclick="addJornada()">${m ? 'Guardar cambios' : 'Guardar jornada'}</button>`;
+    const upd = () => {
+      const mo = Number(document.getElementById('f_monto').value)||0;
+      const pc = Number(document.getElementById('f_pct').value)||0;
+      const ap = Math.round(mo*pc/100);
+      document.getElementById('f_prev').textContent = mo
+        ? 'Se apartan ' + fmt(ap) + ' para la cuota y te quedan ' + fmt(mo-ap) + ' disponibles.'
+        : 'De este monto se apartará automáticamente lo que corresponda.';
+    };
+    b.querySelector('#f_monto').addEventListener('input', upd);
+    b.querySelector('#f_pct').addEventListener('input', upd);
+    if(m) upd(); else setTimeout(()=>b.querySelector('#f_monto').focus(), 260);
+  }
+  if(tipo === 'gasto'){
+    // si la categoría del gasto ya no existe en Ajustes, se muestra igual para no perderla
+    const cats = (m && m.cat && !S.cats.includes(m.cat)) ? [m.cat].concat(S.cats) : S.cats;
+    const sel = m ? (m.cat || '') : (S.cats[0] || '');
+    t.textContent = m ? 'Editar gasto' : 'Registrar gasto';
+    b.innerHTML = `
+      <div class="field"><label for="g_monto">Cuánto gastaste</label>
+        <input id="g_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
+      <div class="field"><label>Categoría</label>
+        <div class="pills" id="g_cats">${cats.map(c=>'<button class="pill'+(c===sel?' on':'')+'" data-c="'+esc(c)+'">'+esc(c)+'</button>').join('')}</div></div>
+      <div class="field" style="margin-top:16px"><label for="g_fecha">Fecha</label>
+        <input id="g_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
+      <div class="field"><label for="g_nota">Nota (opcional)</label>
+        <input id="g_nota" type="text" placeholder="Pasajes, almuerzo…" value="${m ? esc(m.nota) : ''}"></div>
+      <button class="btn wide" onclick="addGasto()">${m ? 'Guardar cambios' : 'Guardar gasto'}</button>`;
+    b.querySelectorAll('#g_cats .pill').forEach(p => p.onclick = () => {
+      b.querySelectorAll('#g_cats .pill').forEach(x=>x.classList.remove('on'));
+      p.classList.add('on');
+    });
+    if(!m) setTimeout(()=>b.querySelector('#g_monto').focus(), 260);
+  }
+  if(tipo === 'pago'){
+    const { apartado } = totales();
+    t.textContent = m ? 'Editar pago de la cuota' : 'Registrar pago de la cuota';
+    b.innerHTML = `
+      <p class="hint" style="margin-top:0">${m
+        ? 'Corrige el monto o la fecha del pago. El acumulado se recalcula solo.'
+        : 'Tienes ' + fmt(apartado) + ' acumulados. Al registrar el pago, ese monto sale del acumulado y el contador arranca de nuevo.'}</p>
+      <div class="field"><label for="p_monto">Monto pagado</label>
+        <input id="p_monto" class="money" type="number" inputmode="decimal" value="${m ? m.monto : (S.cuota||'')}" min="0"></div>
+      <div class="field"><label for="p_fecha">Fecha</label>
+        <input id="p_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
+      <button class="btn wide" onclick="addPago()">${m ? 'Guardar cambios' : 'Confirmar pago'}</button>`;
+  }
+  document.getElementById('sheet').classList.add('on');
+}
+function closeSheet(){
+  document.getElementById('sheet').classList.remove('on');
+  editando = null;
+}
+
+/* ---- acciones ---- */
+/* Escribe sobre el mismo id si la hoja venía de editar; si no, crea el movimiento.
+   Devuelve true cuando es nuevo, para elegir el texto del aviso. */
+function guardarMov(datos){
+  if(editando){
+    const i = S.movs.findIndex(x => x.id === editando);
+    if(i > -1){ S.movs[i] = Object.assign({}, S.movs[i], datos, {id: editando}); return false; }
+  }
+  S.movs.push(Object.assign({id: uid()}, datos));
+  return true;
+}
+function addJornada(){
+  const monto = Number(document.getElementById('f_monto').value);
+  const pct = Number(document.getElementById('f_pct').value);
+  if(!monto || monto <= 0){ toast('Escribe cuánto recibiste.'); return; }
+  const aparta = Math.round(monto * (isNaN(pct)?S.pct:pct) / 100);
+  const nuevo = guardarMov({ tipo:'jornada', fecha:document.getElementById('f_fecha').value || hoy(),
+    monto, aparta, nota:document.getElementById('f_nota').value.trim() });
+  closeSheet(); render();
+  toast((nuevo ? 'Jornada guardada · aparté ' : 'Jornada actualizada · aparté ') + fmt(aparta));
+}
+function addGasto(){
+  const monto = Number(document.getElementById('g_monto').value);
+  if(!monto || monto <= 0){ toast('Escribe cuánto gastaste.'); return; }
+  const sel = document.querySelector('#g_cats .pill.on');
+  const nuevo = guardarMov({ tipo:'gasto', fecha:document.getElementById('g_fecha').value || hoy(),
+    monto, aparta:0, cat: sel ? sel.dataset.c : 'Otros', nota:document.getElementById('g_nota').value.trim() });
+  closeSheet(); render();
+  toast(nuevo ? 'Gasto guardado' : 'Gasto actualizado');
+}
+function addPago(){
+  const monto = Number(document.getElementById('p_monto').value);
+  if(!monto || monto <= 0){ toast('Escribe el monto pagado.'); return; }
+  const nuevo = guardarMov({ tipo:'pago', fecha:document.getElementById('p_fecha').value || hoy(), monto, aparta:0 });
+  closeSheet(); render();
+  toast(nuevo ? 'Pago registrado' : 'Pago actualizado');
+}
+function delMov(id){
+  const m = S.movs.find(x=>x.id===id);
+  if(!m) return;
+  if(!confirm('¿Eliminar este movimiento de ' + fmt(m.monto) + '?')) return;
+  S.movs = S.movs.filter(x => x.id !== id);
+  render(); toast('Movimiento eliminado');
+}
+function saveSettings(){
+  const p = Number(document.getElementById('setPct').value);
+  const c = Number(document.getElementById('setCuota').value);
+  const d = Number(document.getElementById('setDia').value);
+  if(isNaN(p) || p < 0 || p > 100){ toast('El porcentaje va entre 0 y 100.'); return; }
+  S.pct = p; S.cuota = isNaN(c) ? 0 : c; S.diaPago = Math.min(Math.max(d||1,1),28);
+  render(); toast('Cambios guardados');
+}
+function addCat(){
+  const el = document.getElementById('newCat');
+  const v = el.value.trim();
+  if(!v) return;
+  if(S.cats.includes(v)){ toast('Esa categoría ya existe.'); return; }
+  S.cats.push(v); el.value = ''; render(); toast('Categoría agregada');
+}
+function rmCat(i){
+  if(S.cats.length <= 1){ toast('Deja al menos una categoría.'); return; }
+  S.cats.splice(i,1); render();
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify(S,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jornal-' + hoy() + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Copia descargada');
+}
+function importData(ev){
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(!d || !Array.isArray(d.movs)) throw new Error('formato');
+      S = Object.assign({}, DEFAULTS, d);
+      render(); toast('Datos restaurados');
+    }catch(e){ toast('Ese archivo no es una copia de Jornal.'); }
+  };
+  r.readAsText(f); ev.target.value = '';
+}
+function wipe(){
+  if(!confirm('Esto borra todas las jornadas, gastos y ajustes. ¿Seguro?')) return;
+  if(!confirm('Última confirmación: no se puede deshacer.')) return;
+  S = JSON.parse(JSON.stringify(DEFAULTS));
+  render(); toast('Datos borrados');
+}
+
+/* ---- arranque ---- */
+render();
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
