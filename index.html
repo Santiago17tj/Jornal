@@ -120,7 +120,7 @@ button{cursor:pointer;border:none;background:none}
   font-family:var(--mono);font-size:40px;font-weight:600;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums;margin:0;line-height:1.05;
 }
-.big.neg{color:var(--spend)}
+/* el disponible no puede quedar negativo, así que nunca se pinta en rojo */
 .sub{font-size:13.5px;color:var(--muted);margin:8px 0 0}
 
 /* barra partida: cuánto de la deuda total llevas abonado */
@@ -638,11 +638,16 @@ let S = load();
      libre    — lo que puede gastar
      guardado — lo que ya apartó para las deudas y no debe gastarse
 
-   UN ABONO NUNCA TOCA `libre`. Sale de `guardado` y, si ahí no alcanza, la
-   diferencia simplemente no se contabiliza: es plata que ella pagó sin haber
-   registrado el ingreso, y el disponible no tiene por qué reflejarla. Que un
-   abono dejara el disponible en rojo fue un rechazo explícito de la clienta:
-   la deuda y el gasto son dos cuadernos distintos.
+   UN ABONO NUNCA TOCA `libre`. En palabras de la clienta: la plata del abono
+   "entra pero así como entra de una sale", porque va derecho a la deuda.
+   Obligarla a registrar el ingreso y después el abono sería hacerle el
+   trabajo dos veces. Así que el abono se basta solo: baja `guardado` si hay,
+   baja el saldo de la deuda, y `libre` ni se entera.
+
+   NINGÚN BOLSILLO BAJA DE CERO. Ella no registra todos sus ingresos, así que
+   un negativo no significa que se sobregiró: significa que hay plata que
+   entró y no anotó. Un número en rojo que no entiende no es información, es
+   ruido. Lo que gastó de verdad sigue estando en el resumen del mes.
 
    Se recorre en orden cronológico porque el reparto entre los dos bolsillos
    depende de cuánto había guardado en ese momento.
@@ -659,8 +664,8 @@ function totales(){
   let libre = 0, guardado = 0, recibido = 0, reservado = 0, abonado = 0, gastado = 0;
   for(const m of orden){
     if(m.tipo === 'jornada'){ libre += m.monto; recibido += m.monto; }
-    else if(m.tipo === 'reserva'){ libre -= m.monto; guardado += m.monto; reservado += m.monto; }
-    else if(m.tipo === 'gasto'){ libre -= m.monto; gastado += m.monto; }
+    else if(m.tipo === 'reserva'){ libre = Math.max(libre - m.monto, 0); guardado += m.monto; reservado += m.monto; }
+    else if(m.tipo === 'gasto'){ libre = Math.max(libre - m.monto, 0); gastado += m.monto; }
     else if(m.tipo === 'abono'){
       guardado = Math.max(guardado - m.monto, 0);   // nunca baja de cero, y `libre` ni se entera
       abonado += m.monto;
@@ -734,7 +739,6 @@ function render(){
   const t = totales();
   const td = totalDeudas();
   document.getElementById('disponible').textContent = fmt(t.libre);
-  document.getElementById('disponible').classList.toggle('neg', t.libre < 0);
 
   // la barra muestra los dos bolsillos: lo que puede gastar y lo que ya apartó
   const bolsa = Math.max(t.libre, 0) + t.guardado;
@@ -760,9 +764,7 @@ function render(){
     : (S.deudas.length ? 'AL DÍA' : '');
 
   document.getElementById('dispSub').textContent =
-    // el único negativo posible ya es real: gastó más de lo que registró que entró
-    t.libre < 0 ? 'Llevas ' + fmt(t.gastado) + ' en gastos y solo ' + fmt(t.recibido) + ' registrados de ingresos. Registra lo que recibas y cuadra.'
-    : !S.deudas.length ? 'Agrega tus deudas en Ajustes para empezar a apartarles plata.'
+    !S.deudas.length ? 'Agrega tus deudas en Ajustes para empezar a apartarles plata.'
     : td.saldo === 0 ? '¡No debes nada! Todas tus deudas están pagadas.'
     : t.guardado > 0 ? 'Aparte de esto tienes ' + fmt(t.guardado) + ' guardados para tus deudas.'
     : 'Lo que abones a tus deudas no se descuenta de aquí.';

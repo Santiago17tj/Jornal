@@ -59,11 +59,16 @@ $200.000, $40.000 para la universidad, $25.000 para el celular". Esos $65.000 pa
 bolsillo de guardado y te quedan $135.000 disponibles.
 
 Cuando llega la fecha de pago, abres la tarjeta de la deuda y registras el abono. **Un abono
-nunca baja tu disponible**: sale de lo guardado y baja el saldo de la deuda. Si abonas sin
-haber apartado nada, tampoco pasa nada: la deuda baja y tu disponible se queda quieto. Las
-deudas y los gastos son dos cuadernos distintos.
+nunca baja tu disponible.** Esa plata entra y sale en el mismo acto, porque va derecho a la
+deuda: no tienes que registrarla dos veces, primero como ingreso y después como abono. Con
+registrar el abono basta.
 
-**Los gastos sí salen del disponible**, que para eso es.
+Si abonas sin haber apartado nada, tampoco pasa nada: la deuda baja y tu disponible se queda
+quieto.
+
+**Los gastos sí salen del disponible**, que para eso es. Y el disponible nunca baja de $0:
+si te aparece en cero es que hay plata que entró y no anotaste. Lo que gastaste sigue
+completo en el resumen del mes.
 
 ## Primera vez
 

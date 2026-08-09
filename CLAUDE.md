@@ -112,29 +112,30 @@ guardado  — lo que ya apartó para las deudas y no debe gastarse
 | tipo | efecto |
 |---|---|
 | `jornada` | `libre += monto` |
-| `reserva` | `libre −= monto`, `guardado += monto` |
-| `gasto` | `libre −= monto` |
+| `reserva` | `libre = max(libre − monto, 0)`, `guardado += monto` |
+| `gasto` | `libre = max(libre − monto, 0)` |
 | `abono` | `guardado = max(guardado − monto, 0)`. **Nunca toca `libre`.** |
 
 ```
-libre        = Σ jornada − Σ reserva − Σ gasto
-guardado     = Σ reserva − Σ abono, con piso en cero
 saldo(deuda) = deuda.total − Σ abono de esa deuda
 ```
 
-**UN ABONO NUNCA TOCA `libre`, en ningún caso.** Si abona más de lo que tenía guardado, la
-diferencia simplemente no se contabiliza: es plata que pagó sin registrar el ingreso, y el
-disponible no tiene por qué reflejarla.
+Dos reglas que no son negociables, las dos por rechazo explícito de la clienta:
 
-Esto fue un rechazo explícito de la clienta, dos veces. La primera versión hacía que repartir
-y abonar fueran el mismo paso; la segunda cargaba a `libre` lo que el bolsillo no cubriera.
-Las dos le dejaban el disponible en rojo cuando abonaba sin haber registrado ingresos, que es
-como usa la app de verdad. Textual: *"me da como rabia ver ese − y esos números en rojo… es
-innecesario agregar abono y tener que registrar eso en el gasto"*. La deuda y el gasto son
-dos cuadernos distintos. **No los vuelvas a juntar.**
+**1. Un abono nunca toca `libre`, en ningún caso.** En sus palabras, la plata del abono
+*"entra pero así como entra de una sale"*, porque va derecho a la deuda. Obligarla a
+registrar el ingreso y después el abono sería *"hacer doble trabajo"*. El abono se basta
+solo. Ya se intentó dos veces al revés: primero repartir y abonar eran el mismo paso, después
+`libre` absorbía lo que el bolsillo no cubriera. Las dos le dejaban el disponible en rojo.
 
-`libre` solo puede quedar negativo si `Σ gasto > Σ jornada`, que es información real; en ese
-caso el subtítulo de Inicio lo explica en vez de mostrar un rojo a secas.
+**2. Ningún bolsillo baja de cero.** Ella no registra todos sus ingresos, así que un negativo
+no significa que se sobregiró: significa que entró plata que no anotó. Textual: *"me da como
+rabia ver ese − y esos números en rojo"*. Lo que gastó de verdad **no se pierde**: sigue en
+`gastado` y se muestra en el resumen del mes.
+
+Por eso no hay un invariante de suma: los pisos en cero absorben la plata que ella no
+registró, a propósito. Lo que sí debe cumplirse siempre es que `libre >= 0`, `guardado >= 0`,
+y que el saldo de cada deuda sea exactamente su total menos sus abonos.
 
 Dentro de un mismo día el orden lo fija el **tipo** (`ORDEN_TIPO`), no el `id`: la plata entra,
 se aparta y solo después se abona. Sin eso, un abono cuyo `id` sea anterior al de su reserva
@@ -334,9 +335,11 @@ Validaciones mínimas antes de dar algo por terminado:
 
 - `node --check` sobre el JS extraído, y la consola del navegador **sin errores**.
 - **Abonar no baja el disponible NUNCA**, ni con el bolsillo de guardado vacío. Registra tres
-  abonos sin ningún ingreso: el disponible debe quedar en `$0`, no en rojo. Es la prueba que
-  más veces se ha roto.
-- `guardado` nunca queda negativo, y `libre = Σ jornada − Σ reserva − Σ gasto`.
+  abonos sin ningún ingreso: el disponible debe quedar en `$0`. Es la prueba que más veces se
+  ha roto.
+- **En ninguna pantalla puede aparecer un negativo del disponible.** Prueba también con solo
+  gastos y sin ingresos, y con un gasto mayor que lo disponible: debe quedar en `$0` y el
+  gasto completo debe seguir viéndose en el resumen del mes.
 - Las migraciones desde `jornal.v1` y `jornal.v2` conservan `libre` exacto, no mueven ningún
   saldo y dejan su `.backup`.
 - Prueba en ancho de 375px (iPhone SE) y 430px (Pro Max), sin desborde horizontal.
@@ -355,10 +358,13 @@ Validaciones mínimas antes de dar algo por terminado:
 - No metas analítica, telemetría ni llamadas de red de ningún tipo.
 - No cambies la clave de `localStorage` sin migración, y nunca borres los `.backup`.
 - **No vuelvas a juntar los dos bolsillos, ni "solo cuando el guardado no alcance".** Que un
-  abono baje el disponible fue un rechazo explícito de la clienta dos veces seguidas. Ella
-  separa la plata de las deudas de la plata de vivir. Ver sección 4.
-- No pongas cifras en rojo salvo gastos y errores de verdad. Un número negativo que ella no
-  entiende no es información, es ruido que la enoja.
+  abono baje el disponible fue un rechazo explícito de la clienta dos veces seguidas. Ver
+  sección 4.
+- **No le pidas registrar la misma plata dos veces.** Si abona, no hace falta que además
+  registre de dónde salió. Cualquier función nueva que la obligue a anotar algo dos veces
+  está mal diseñada, aunque cuadre mejor las cuentas.
+- No muestres el disponible en negativo ni en rojo. Un número que ella no entiende no es
+  información, es ruido que la enoja.
 - No metas gradientes de color, sombras tintadas ni bordes gruesos. La paleta es la del
   boceto de ella, pero la densidad y el detalle tipográfico son de recibo, y eso se mantiene.
 - No uses el verde (`--paid`) para nada que no sea una deuda liquidada.
