@@ -46,6 +46,39 @@ body{
 button,input,select,textarea{font-family:inherit;font-size:16px;color:inherit}
 button{cursor:pointer;border:none;background:none}
 
+/* ---------- pantalla de arranque ---------- */
+.splash{
+  position:fixed;inset:0;z-index:100;background:var(--paper);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+  transition:opacity .32s ease;
+}
+.splash.fuera{opacity:0;pointer-events:none}
+.splash[hidden]{display:none}
+.splash-art{width:150px;height:126px;overflow:visible}
+.moneda{
+  fill:var(--accent-soft);stroke:var(--accent);stroke-width:2.5;
+  transform-box:fill-box;transform-origin:center;
+  opacity:0;animation:caeMoneda .44s cubic-bezier(.2,.9,.3,1.25) forwards;
+}
+.m4{animation-delay:.04s}
+.m3{animation-delay:.15s}
+.m2{animation-delay:.26s}
+.m1{animation-delay:.37s;fill:var(--accent);stroke:var(--accent)}
+@keyframes caeMoneda{
+  from{opacity:0;transform:translateY(-30px) scaleX(.7)}
+  60%{opacity:1}
+  to{opacity:1;transform:none}
+}
+.splash-peso{
+  fill:#FFF;font-family:var(--mono);font-size:17px;font-weight:700;
+  opacity:0;animation:apareceSuave .3s ease .58s forwards;
+}
+.splash-w{
+  margin:0;font-size:19px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ink);opacity:0;animation:apareceSuave .38s ease .5s forwards;
+}
+@keyframes apareceSuave{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
 /* ---------- estructura ---------- */
 .app{
   max-width:520px;margin:0 auto;
@@ -56,6 +89,9 @@ button{cursor:pointer;border:none;background:none}
   font-size:22px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;margin:0;
 }
 .brand .cycle{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+.saludo{margin:-12px 0 18px;font-size:15px;color:var(--muted)}
+.saludo b{color:var(--ink);font-weight:600}
+.saludo[hidden]{display:none}
 .view{display:none;animation:rise .22s ease-out}
 .view.on{display:block}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -168,13 +204,16 @@ button{cursor:pointer;border:none;background:none}
   font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--ink);mix-blend-mode:luminosity;
 }
 
-/* ---------- aviso ---------- */
-/* nota al margen del recibo, no una alarma */
+/* ---------- avisos ---------- */
+/* notas al margen del recibo, no alarmas */
+.avisos{display:grid;gap:10px;margin:26px 0 -8px}
+.avisos:empty{display:none;margin:0}
 .nudge{
-  margin:26px 0 -8px;padding:13px 15px;
+  padding:13px 15px;
   border:1px dashed var(--gold);border-radius:11px;background:rgba(169,118,29,.07);
 }
-.nudge[hidden]{display:none}
+.nudge.bien{border-color:var(--paid);background:var(--paid-soft)}
+.nudge.bien .nudge-go{color:var(--paid)}
 .nudge-t{margin:0 0 10px;font-size:13.5px;line-height:1.45;color:var(--ink)}
 .nudge-acts{display:flex;align-items:center;gap:16px}
 .nudge-go{font-size:13.5px;font-weight:600;color:var(--gold);text-decoration:underline;text-underline-offset:3px;padding:2px 0}
@@ -296,11 +335,25 @@ nav button.on{color:var(--ink)}
 </head>
 <body>
 
+<!-- Pantalla de arranque: monedas que se apilan. Se quita sola al segundo,
+     o antes si la tocan. Con prefers-reduced-motion ni aparece. -->
+<div class="splash" id="splash" onclick="quitarSplash()">
+  <svg class="splash-art" viewBox="0 0 140 118" aria-hidden="true">
+    <ellipse class="moneda m4" cx="70" cy="96" rx="40" ry="12"/>
+    <ellipse class="moneda m3" cx="70" cy="76" rx="40" ry="12"/>
+    <ellipse class="moneda m2" cx="70" cy="56" rx="40" ry="12"/>
+    <ellipse class="moneda m1" cx="70" cy="36" rx="40" ry="12"/>
+    <text class="splash-peso" x="70" y="41" text-anchor="middle">$</text>
+  </svg>
+  <p class="splash-w">Jornal</p>
+</div>
+
 <div class="app">
   <div class="brand">
     <h1>Jornal</h1>
     <span class="cycle" id="cycleLabel"></span>
   </div>
+  <p class="saludo" id="saludo" hidden></p>
 
   <!-- ============ INICIO ============ -->
   <section class="view on" id="v-inicio">
@@ -315,13 +368,7 @@ nav button.on{color:var(--ink)}
       </div>
     </div>
 
-    <div class="nudge" id="nudge" hidden>
-      <p class="nudge-t" id="nudgeText"></p>
-      <div class="nudge-acts">
-        <button class="nudge-go" id="nudgeGo" onclick="exportData()">Descargar copia</button>
-        <button class="nudge-no" onclick="ocultarAviso()">Ahora no</button>
-      </div>
-    </div>
+    <div class="avisos" id="avisos"></div>
 
     <div class="actions">
       <button class="btn acc" onclick="openSheet('jornada')">Registrar ingreso</button>
@@ -374,6 +421,15 @@ nav button.on{color:var(--ink)}
   <!-- ============ AJUSTES ============ -->
   <section class="view" id="v-ajustes">
     <div class="card">
+      <h3>Tu nombre</h3>
+      <div class="field" style="margin-bottom:12px">
+        <label for="setNombre">Así te saluda la app</label>
+        <input id="setNombre" type="text" placeholder="Tu nombre" maxlength="24">
+      </div>
+      <button class="btn ghost wide" onclick="guardarNombre()">Guardar</button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
       <h3>Deudas</h3>
       <p class="hint" style="margin-top:0">Cada obligación es independiente: tiene su total, su día de pago y sus abonos. Cuando el saldo llega a cero, queda marcada como pagada.</p>
       <div id="deudaEdit"></div>
@@ -448,6 +504,7 @@ const KEY = 'jornal.v3';
 const KEY_V2 = 'jornal.v2';
 const KEY_V1 = 'jornal.v1';
 const DEFAULTS = {
+  nombre: '',         // cómo saludarla; se pregunta la primera vez
   cats: ['Transporte', 'Comida', 'Universidad', 'Casa', 'Otros'],
   deudas: [],         // {id, nombre, icono, total, diaPago}
   movs: [],           // {id, tipo:'jornada'|'reserva'|'gasto'|'abono', fecha, monto, ...}
@@ -581,9 +638,11 @@ let S = load();
      libre    — lo que puede gastar
      guardado — lo que ya apartó para las deudas y no debe gastarse
 
-   Un abono sale del bolsillo de guardado. Solo si ese bolsillo no alcanza,
-   la diferencia se carga a libre (y la hoja de abono se lo avisa antes de
-   guardar). Por eso pagar una deuda ya no pone el disponible en negativo.
+   UN ABONO NUNCA TOCA `libre`. Sale de `guardado` y, si ahí no alcanza, la
+   diferencia simplemente no se contabiliza: es plata que ella pagó sin haber
+   registrado el ingreso, y el disponible no tiene por qué reflejarla. Que un
+   abono dejara el disponible en rojo fue un rechazo explícito de la clienta:
+   la deuda y el gasto son dos cuadernos distintos.
 
    Se recorre en orden cronológico porque el reparto entre los dos bolsillos
    depende de cuánto había guardado en ese momento.
@@ -603,9 +662,7 @@ function totales(){
     else if(m.tipo === 'reserva'){ libre -= m.monto; guardado += m.monto; reservado += m.monto; }
     else if(m.tipo === 'gasto'){ libre -= m.monto; gastado += m.monto; }
     else if(m.tipo === 'abono'){
-      const delBolsillo = Math.min(guardado, m.monto);   // guardado nunca baja de cero
-      guardado -= delBolsillo;
-      libre -= (m.monto - delBolsillo);
+      guardado = Math.max(guardado - m.monto, 0);   // nunca baja de cero, y `libre` ni se entera
       abonado += m.monto;
     }
   }
@@ -689,16 +746,26 @@ function render(){
   document.getElementById('deudasTotal').textContent =
     td.total > 0 ? 'Debes ' + fmt(td.saldo) + ' de ' + fmt(td.total) : '';
 
+  const sal = document.getElementById('saludo');
+  sal.hidden = !S.nombre;
+  if(S.nombre){
+    const h = new Date().getHours();
+    const franja = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+    sal.innerHTML = franja + ', <b>' + esc(S.nombre) + '</b>.';
+  }
+
   const vence = avisoVence();
   document.getElementById('cycleLabel').textContent = vence
     ? 'VENCE · ' + vence.p.fecha.getDate() + ' ' + MESES[vence.p.fecha.getMonth()].toUpperCase().slice(0,3)
     : (S.deudas.length ? 'AL DÍA' : '');
 
   document.getElementById('dispSub').textContent =
-    !S.deudas.length ? 'Agrega tus deudas en Ajustes para empezar a apartarles plata.'
+    // el único negativo posible ya es real: gastó más de lo que registró que entró
+    t.libre < 0 ? 'Llevas ' + fmt(t.gastado) + ' en gastos y solo ' + fmt(t.recibido) + ' registrados de ingresos. Registra lo que recibas y cuadra.'
+    : !S.deudas.length ? 'Agrega tus deudas en Ajustes para empezar a apartarles plata.'
     : td.saldo === 0 ? '¡No debes nada! Todas tus deudas están pagadas.'
     : t.guardado > 0 ? 'Aparte de esto tienes ' + fmt(t.guardado) + ' guardados para tus deudas.'
-    : 'Lo que apartes para las deudas no se cuenta aquí.';
+    : 'Lo que abones a tus deudas no se descuenta de aquí.';
 
   renderDeudas();
 
@@ -724,29 +791,7 @@ function render(){
   document.getElementById('catList').innerHTML = entries.map(([c,v]) =>
     '<div class="row"><span class="k">'+esc(c)+'</span><span class="v spend">'+fmt(v)+'</span></div>').join('');
 
-  // avisos: primero el vencimiento, después el respaldo
-  const nudge = document.getElementById('nudge');
-  const av = avisoRespaldo();
-  if(vence){
-    const e = estadoDeuda(vence.d);
-    nudge.hidden = false;
-    document.getElementById('nudgeText').textContent =
-      (vence.p.dias === 0 ? 'Hoy' : vence.p.dias === 1 ? 'Mañana' : 'En ' + vence.p.dias + ' días')
-      + ' vence ' + vence.d.nombre + '. Te faltan ' + fmt(e.saldo) + '.';
-    const go = document.getElementById('nudgeGo');
-    go.textContent = 'Registrar abono';
-    go.onclick = () => openSheet('abono', null, vence.d.id);
-  } else if(av){
-    nudge.hidden = false;
-    document.getElementById('nudgeText').textContent = av.nunca
-      ? 'Llevas ' + av.dias + ' días de registros y ninguna copia de seguridad.'
-      : 'Tu última copia es de hace ' + av.dias + ' días.';
-    const go = document.getElementById('nudgeGo');
-    go.textContent = 'Descargar copia';
-    go.onclick = () => exportData();
-  } else {
-    nudge.hidden = true;
-  }
+  renderAvisos();
 
   const dr = S.ultimoRespaldo ? diasEntre(S.ultimoRespaldo, hoy()) : null;
   document.getElementById('respaldoEstado').textContent = S.ultimoRespaldo
@@ -757,7 +802,51 @@ function render(){
   renderMovs();
   renderDeudaEdit();
   renderCats();
+  document.getElementById('setNombre').value = S.nombre || '';
   save();
+}
+
+/* Todos los avisos que apliquen, apilados y por prioridad: primero lo que
+   vence, después lo que está a punto de quedar pagado, y de último el
+   recordatorio de respaldo. Se limitan a tres para que Inicio no se vuelva
+   una pared de advertencias. */
+const PCT_CASI = 85;   // desde este porcentaje se anima a rematar la deuda
+function renderAvisos(){
+  const out = [];
+  const yaAvisadas = new Set();
+
+  S.deudas.filter(d => !estadoDeuda(d).pagada)
+    .map(d => ({ d, p: proximoPago(d.diaPago) }))
+    .filter(x => x.p.dias <= DIAS_VENCE)
+    .sort((a,b) => a.p.dias - b.p.dias)
+    .forEach(({d,p}) => {
+      yaAvisadas.add(d.id);
+      const cuando = p.dias === 0 ? 'Hoy' : p.dias === 1 ? 'Mañana' : 'En ' + p.dias + ' días';
+      out.push(nudgeHTML(
+        cuando + ' vence ' + esc(d.nombre) + '. Te faltan ' + fmt(estadoDeuda(d).saldo) + '.',
+        'Registrar abono', "openSheet('abono',null,'" + d.id + "')"));
+    });
+
+  S.deudas.filter(d => { const e = estadoDeuda(d); return !e.pagada && e.pct >= PCT_CASI; })
+    .filter(d => !yaAvisadas.has(d.id))
+    .forEach(d => out.push(nudgeHTML(
+      'A ' + esc(d.nombre) + ' solo le faltan ' + fmt(estadoDeuda(d).saldo) + ' para quedar pagada.',
+      'Rematarla', "openSheet('abono',null,'" + d.id + "')", 'bien')));
+
+  const av = avisoRespaldo();
+  if(av) out.push(nudgeHTML(
+    av.nunca ? 'Llevas ' + av.dias + ' días de registros y ninguna copia de seguridad.'
+             : 'Tu última copia es de hace ' + av.dias + ' días.',
+    'Descargar copia', 'exportData()', '', true));
+
+  document.getElementById('avisos').innerHTML = out.slice(0,3).join('');
+}
+function nudgeHTML(texto, accion, onclick, clase, posponible){
+  return '<div class="nudge' + (clase ? ' ' + clase : '') + '">'
+    + '<p class="nudge-t">' + texto + '</p><div class="nudge-acts">'
+    + '<button class="nudge-go" onclick="' + onclick + '">' + accion + '</button>'
+    + (posponible ? '<button class="nudge-no" onclick="ocultarAviso()">Ahora no</button>' : '')
+    + '</div></div>';
 }
 
 function renderDeudas(){
@@ -978,18 +1067,15 @@ function openSheet(tipo, id, deudaId){
     const e = estadoDeuda(d);
     // al editar, el saldo disponible incluye lo que este mismo abono ya descontó
     const tope = e.saldo + (m ? m.monto : 0);
-    const bolsillo = totales().guardado + (m ? m.monto : 0);     // el bolsillo global, que es lo que se descuenta
-    const suyo = Math.min(guardadoDe(d.id) + (m ? m.monto : 0), tope);  // lo etiquetado para esta deuda
+    const suyo = Math.min(guardadoDe(d.id) + (m ? m.monto : 0), tope);  // lo que había apartado para esta deuda
     t.textContent = m ? 'Editar abono' : 'Abonar a ' + d.nombre;
     b.innerHTML = `
-      <p class="hint" style="margin-top:0">${esc(d.icono||'🧾')} ${esc(d.nombre)} · te faltan ${fmt(tope)} de ${fmt(d.total)}.<br>
-        ${suyo > 0
-          ? 'Tienes ' + fmt(suyo) + ' apartados para esta deuda' + (bolsillo > suyo ? ' y ' + fmt(bolsillo) + ' guardados en total.' : '.')
-          : 'Tienes ' + fmt(bolsillo) + ' guardados para deudas.'}</p>
+      <p class="hint" style="margin-top:0">${esc(d.icono||'🧾')} ${esc(d.nombre)} · te faltan ${fmt(tope)} de ${fmt(d.total)}.${
+        suyo > 0 ? '<br>Tienes ' + fmt(suyo) + ' apartados para esta deuda.' : ''}</p>
       <input type="hidden" id="a_deuda" value="${esc(d.id)}">
       <div class="field"><label for="a_monto">Cuánto abonas</label>
         <input id="a_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : (suyo > 0 ? suyo : '')}"></div>
-      <p class="hint" id="a_prev">Sale de lo que tienes guardado, no de tu disponible.</p>
+      <p class="hint" id="a_prev">Baja el saldo de la deuda. No toca tu disponible para gastar.</p>
       <div class="field"><label for="a_fecha">Fecha</label>
         <input id="a_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
       <div class="field"><label for="a_nota">Nota (opcional)</label>
@@ -998,18 +1084,11 @@ function openSheet(tipo, id, deudaId){
     const upd = () => {
       const v = Number(document.getElementById('a_monto').value) || 0;
       const p = document.getElementById('a_prev');
-      const delDisponible = Math.max(v - bolsillo, 0);   // lo que el bolsillo no alcanza a cubrir
-      let txt;
-      if(!v) txt = 'Sale de lo que tienes guardado, no de tu disponible.';
-      else if(v > tope) txt = 'Son ' + fmt(v - tope) + ' más de lo que debes.';
-      else {
-        txt = v === tope ? '¡Con esto queda pagada!' : 'La deuda quedaría en ' + fmt(tope - v) + '.';
-        txt += delDisponible > 0
-          ? ' Ojo: solo tienes ' + fmt(bolsillo) + ' guardados, así que ' + fmt(delDisponible) + ' saldrán de tu disponible.'
-          : ' Sale de lo guardado; tu disponible no se toca.';
-      }
-      p.textContent = txt;
-      p.style.color = v > tope ? 'var(--spend)' : (delDisponible > 0 ? 'var(--gold)' : 'var(--muted)');
+      p.textContent = !v ? 'Baja el saldo de la deuda. No toca tu disponible para gastar.'
+        : v > tope ? 'Son ' + fmt(v - tope) + ' más de lo que debes.'
+        : v === tope ? '¡Con esto queda pagada!'
+        : 'La deuda quedaría en ' + fmt(tope - v) + '.';
+      p.style.color = v > tope ? 'var(--spend)' : 'var(--muted)';
     };
     b.querySelector('#a_monto').addEventListener('input', upd);
     if(m) upd(); else foco('#a_monto');
@@ -1035,6 +1114,17 @@ function openSheet(tipo, id, deudaId){
       p.classList.add('on');
     });
     if(!m) foco('#d_nombre');
+  }
+
+  if(tipo === 'bienvenida'){
+    t.textContent = '¡Hola!';
+    b.innerHTML = `
+      <p class="hint" style="margin-top:0">Jornal lleva la cuenta de lo que debes y de lo que te va quedando, para que no tengas que restar a mano.</p>
+      <div class="field"><label for="n_nombre">¿Cómo te llamas?</label>
+        <input id="n_nombre" type="text" placeholder="Tu nombre" autocomplete="given-name" maxlength="24"></div>
+      <button class="btn acc wide" onclick="guardarNombre()">Empezar</button>
+      <button class="btn ghost wide" style="margin-top:10px" onclick="closeSheet()">Ahora no</button>`;
+    foco('#n_nombre');
   }
 
   if(tipo === 'historial'){
@@ -1178,6 +1268,12 @@ function delMov(id){
   render(); toast('Movimiento eliminado');
 }
 
+function guardarNombre(){
+  const v = (document.getElementById('n_nombre') || document.getElementById('setNombre')).value.trim();
+  S.nombre = v.slice(0, 24);
+  closeSheet(); render();
+  toast(v ? '¡Mucho gusto, ' + v + '!' : 'Listo');
+}
 function addCat(){
   const el = document.getElementById('newCat');
   const v = el.value.trim();
@@ -1228,6 +1324,24 @@ function wipe(){
 
 /* ---- arranque ---- */
 render();
+
+/* La pantalla de arranque se quita sola. Si es la primera vez, al terminar
+   pregunta el nombre. `quitarSplash` es idempotente: da igual si la tocan
+   antes de tiempo o si el temporizador llega después. */
+function quitarSplash(){
+  const s = document.getElementById('splash');
+  if(!s || s.hidden) return;
+  s.classList.add('fuera');
+  setTimeout(() => { s.hidden = true; }, 340);
+  if(!S.nombre && !S.movs.length && !S.deudas.length) setTimeout(() => openSheet('bienvenida'), 380);
+}
+if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+  document.getElementById('splash').hidden = true;
+  if(!S.nombre && !S.movs.length && !S.deudas.length) openSheet('bienvenida');
+} else {
+  setTimeout(quitarSplash, 1150);
+}
+
 if('serviceWorker' in navigator){
   /* Cuando se publica una versión nueva, el service worker entra con
      skipWaiting + clients.claim. Aquí se detecta y se recarga sola: si no, la

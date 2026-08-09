@@ -58,21 +58,27 @@ Cuando recibes plata, registras cuánto fue y cuánto apartas para cada deuda: "
 $200.000, $40.000 para la universidad, $25.000 para el celular". Esos $65.000 pasan al
 bolsillo de guardado y te quedan $135.000 disponibles.
 
-Cuando llega la fecha de pago, abres la tarjeta de la deuda y registras el abono. **Esa plata
-sale de lo guardado, no de tu disponible**, así que pagar una deuda nunca te deja el
-disponible en negativo. La app te sugiere justo lo que habías apartado para esa deuda.
+Cuando llega la fecha de pago, abres la tarjeta de la deuda y registras el abono. **Un abono
+nunca baja tu disponible**: sale de lo guardado y baja el saldo de la deuda. Si abonas sin
+haber apartado nada, tampoco pasa nada: la deuda baja y tu disponible se queda quieto. Las
+deudas y los gastos son dos cuadernos distintos.
 
-Si abonas más de lo que tenías guardado, te avisa antes de guardar cuánto va a salir de tu
-disponible. Nunca te descuadra en silencio.
+**Los gastos sí salen del disponible**, que para eso es.
 
-**Los gastos salen del disponible.**
+## Primera vez
+
+La app te pregunta cómo te llamas y después te saluda según la hora. Puedes cambiarlo o
+quitarlo en Ajustes.
 
 ## Avisos
 
-- **Vencimiento cerca**: cinco días antes de la fecha de una deuda sin pagar, aparece en
-  Inicio con el botón para abonar de una.
-- **Respaldo**: si pasan 15 días sin descargar una copia, te lo recuerda. Puedes posponerlo
-  con "Ahora no" y vuelve en una semana.
+Aparecen en Inicio, hasta tres a la vez:
+
+- **Vencimiento cerca**: cinco días antes de la fecha de una deuda sin pagar, con el botón
+  para abonar de una.
+- **Casi pagada**: cuando a una deuda le falta menos del 15%, para que la remates.
+- **Respaldo**: si pasan 15 días sin descargar una copia. Puedes posponerlo con "Ahora no"
+  y vuelve en una semana.
 
 Los avisos solo aparecen **con la app abierta**. Notificaciones con la app cerrada no son
 posibles sin un servidor, y esta app no tiene ninguno a propósito.

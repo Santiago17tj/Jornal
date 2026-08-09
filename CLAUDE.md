@@ -59,8 +59,9 @@ Funciona hoy:
   libre calculado en vivo. Guardar crea el ingreso y una **reserva** por deuda: esa plata se
   aparta, no se paga todavía.
 - **Registrar gasto**: monto + categoría (pills) + fecha + nota.
-- **Registrar abono** a una deuda, con tope en el saldo. Sugiere lo apartado para ella y
-  avisa antes de guardar si el monto excede lo guardado y va a tocar el disponible.
+- **Registrar abono** a una deuda, con tope en el saldo. Sugiere lo apartado para ella.
+- **Pantalla de arranque** con monedas apilándose, y bienvenida que pregunta el nombre la
+  primera vez. Inicio saluda según la hora; el nombre se cambia en Ajustes.
 - **Movimientos**: navegación por mes, totales de entrada/salida, tocar una fila la abre para
   editarla (escribe sobre el mismo `id`), eliminar con confirmación.
 - **Ajustes**: CRUD de deudas (nombre, ícono, total, día de pago), CRUD de categorías.
@@ -75,6 +76,7 @@ Un único objeto en `localStorage` bajo la clave `jornal.v3`:
 
 ```js
 {
+  nombre: '',        // cómo la saluda la app; se pregunta la primera vez
   cats: ['Transporte', 'Comida', ...],
   deudas: [
     { id, nombre, icono, total: Number, diaPago: Number }   // diaPago se limita a 1..28
@@ -112,16 +114,27 @@ guardado  — lo que ya apartó para las deudas y no debe gastarse
 | `jornada` | `libre += monto` |
 | `reserva` | `libre −= monto`, `guardado += monto` |
 | `gasto` | `libre −= monto` |
-| `abono` | sale de `guardado`; solo lo que ese bolsillo no cubra se carga a `libre` |
+| `abono` | `guardado = max(guardado − monto, 0)`. **Nunca toca `libre`.** |
 
 ```
-libre + guardado = Σ jornada − Σ gasto − Σ abono     (invariante, verificado en pruebas)
-saldo(deuda)     = deuda.total − Σ abono de esa deuda
+libre        = Σ jornada − Σ reserva − Σ gasto
+guardado     = Σ reserva − Σ abono, con piso en cero
+saldo(deuda) = deuda.total − Σ abono de esa deuda
 ```
 
-**Un abono no pone el disponible en negativo** mientras haya plata guardada. Esa era la queja
-concreta de la clienta y es la razón de ser de este modelo: antes repartir y abonar eran el
-mismo paso y todo abono salía del disponible.
+**UN ABONO NUNCA TOCA `libre`, en ningún caso.** Si abona más de lo que tenía guardado, la
+diferencia simplemente no se contabiliza: es plata que pagó sin registrar el ingreso, y el
+disponible no tiene por qué reflejarla.
+
+Esto fue un rechazo explícito de la clienta, dos veces. La primera versión hacía que repartir
+y abonar fueran el mismo paso; la segunda cargaba a `libre` lo que el bolsillo no cubriera.
+Las dos le dejaban el disponible en rojo cuando abonaba sin haber registrado ingresos, que es
+como usa la app de verdad. Textual: *"me da como rabia ver ese − y esos números en rojo… es
+innecesario agregar abono y tener que registrar eso en el gasto"*. La deuda y el gasto son
+dos cuadernos distintos. **No los vuelvas a juntar.**
+
+`libre` solo puede quedar negativo si `Σ gasto > Σ jornada`, que es información real; en ese
+caso el subtítulo de Inicio lo explica en vez de mostrar un rojo a secas.
 
 Dentro de un mismo día el orden lo fija el **tipo** (`ORDEN_TIPO`), no el `id`: la plata entra,
 se aparta y solo después se abona. Sin eso, un abono cuyo `id` sea anterior al de su reserva
@@ -175,7 +188,10 @@ Funciones principales:
   lo apartado para ella y su progreso
 - `proximoPago(diaPago)` — fecha y días hasta el próximo vencimiento
 - `delMes(ym)` / `diasEntre(a,b)` — filtros y fechas
-- `avisoVence()` / `avisoRespaldo()` / `ocultarAviso()` — los dos avisos de Inicio, por prioridad
+- `renderAvisos()` / `avisoVence()` / `avisoRespaldo()` / `ocultarAviso()` — los avisos de
+  Inicio, apilados y por prioridad: vencimiento, deuda casi pagada (`PCT_CASI`), respaldo.
+  Máximo tres, para que Inicio no se vuelva una pared de advertencias
+- `quitarSplash()` — cierra la pantalla de arranque; idempotente
 - `render()` — pinta inicio y dispara `renderDeudas()`, `renderMovs()`, `renderDeudaEdit()`,
   `renderCats()`
 - `openSheet(tipo, id?, deudaId?)` / `closeSheet()` / `foco(sel)` — hojas inferiores. Tipos:
@@ -189,6 +205,12 @@ Funciones principales:
 
 Todo texto que venga del usuario pasa por `esc()` antes de entrar al DOM vía `innerHTML`.
 Mantenlo: es la única defensa contra inyección en esta app.
+
+**Pantalla de arranque.** Monedas que se apilan, en SVG + CSS (`.splash`). Dura ~1,15 s, se
+cierra al tocarla y **no aparece** con `prefers-reduced-motion`. Al terminar, si no hay nombre
+ni datos, abre la hoja `bienvenida` que pregunta cómo se llama. Si alargas la animación,
+recuerda que ella abre la app varias veces al día: lo que la primera vez encanta, a la décima
+estorba.
 
 `foco()` comprueba que el campo siga en el DOM antes de enfocarlo: si la hoja se cierra antes
 de los 260 ms de la animación, el cuerpo ya fue reemplazado. No vuelvas al `setTimeout` pelado.
@@ -311,9 +333,10 @@ Pages (necesita HTTPS) y abre **en Safari**; Chrome en iOS no instala PWAs.
 Validaciones mínimas antes de dar algo por terminado:
 
 - `node --check` sobre el JS extraído, y la consola del navegador **sin errores**.
-- Los totales cuadran: `libre + guardado = Σ jornada − Σ gasto − Σ abono`, y `guardado` nunca
-  queda negativo.
-- **Abonar no baja el disponible** mientras haya plata guardada. Es la razón de ser del modelo.
+- **Abonar no baja el disponible NUNCA**, ni con el bolsillo de guardado vacío. Registra tres
+  abonos sin ningún ingreso: el disponible debe quedar en `$0`, no en rojo. Es la prueba que
+  más veces se ha roto.
+- `guardado` nunca queda negativo, y `libre = Σ jornada − Σ reserva − Σ gasto`.
 - Las migraciones desde `jornal.v1` y `jornal.v2` conservan `libre` exacto, no mueven ningún
   saldo y dejan su `.backup`.
 - Prueba en ancho de 375px (iPhone SE) y 430px (Pro Max), sin desborde horizontal.
@@ -331,9 +354,11 @@ Validaciones mínimas antes de dar algo por terminado:
 - No agregues React, Tailwind, ni ninguna dependencia. Es intencional que no haya build.
 - No metas analítica, telemetría ni llamadas de red de ningún tipo.
 - No cambies la clave de `localStorage` sin migración, y nunca borres los `.backup`.
-- **No vuelvas a juntar los dos bolsillos.** Que un abono salga del disponible y lo deje en
-  negativo fue un rechazo explícito de la clienta: ella separa la plata de las deudas de la
-  plata de vivir, y la app tiene que reflejarlo.
+- **No vuelvas a juntar los dos bolsillos, ni "solo cuando el guardado no alcance".** Que un
+  abono baje el disponible fue un rechazo explícito de la clienta dos veces seguidas. Ella
+  separa la plata de las deudas de la plata de vivir. Ver sección 4.
+- No pongas cifras en rojo salvo gastos y errores de verdad. Un número negativo que ella no
+  entiende no es información, es ruido que la enoja.
 - No metas gradientes de color, sombras tintadas ni bordes gruesos. La paleta es la del
   boceto de ella, pero la densidad y el detalle tipográfico son de recibo, y eso se mantiene.
 - No uses el verde (`--paid`) para nada que no sea una deuda liquidada.
