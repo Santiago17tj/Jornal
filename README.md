@@ -93,6 +93,12 @@ posibles sin un servidor, y esta app no tiene ninguno a propósito.
 La app se actualiza sola: al abrirla con internet detecta la versión nueva y se recarga.
 No hay que borrar cachés ni reinstalar el ícono.
 
+## Movimientos
+
+Cada mes muestra por separado lo que **recibiste**, lo que **gastaste** y lo que **abonaste
+a deudas**, para que no se mezclen. En la lista, cada línea lleva su ícono: 💵 un ingreso,
+🛒 un gasto, y el ícono de la deuda cuando es un abono.
+
 ## Corregir algo que registraste mal
 
 En **Movimientos**, toca la fila. Se abre con los datos que tiene y los puedes cambiar.

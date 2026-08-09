@@ -62,8 +62,9 @@ Funciona hoy:
 - **Registrar abono** a una deuda, con tope en el saldo. Sugiere lo apartado para ella.
 - **Pantalla de arranque** con monedas apilándose, y bienvenida que pregunta el nombre la
   primera vez. Inicio saluda según la hora; el nombre se cambia en Ajustes.
-- **Movimientos**: navegación por mes, totales de entrada/salida, tocar una fila la abre para
-  editarla (escribe sobre el mismo `id`), eliminar con confirmación.
+- **Movimientos**: navegación por mes, totales separados (recibiste / gastaste / abonaste),
+  tocar una fila la abre para editarla (escribe sobre el mismo `id`), eliminar con
+  confirmación. Las filas van **sin signos**: ícono y color dicen qué es cada una.
 - **Ajustes**: CRUD de deudas (nombre, ícono, total, día de pago), CRUD de categorías.
 - **Respaldo**: exportar/importar JSON, estado de la última copia, recordatorio a los 15 días
   sin respaldar, borrar todo con doble confirmación.
@@ -365,6 +366,13 @@ Validaciones mínimas antes de dar algo por terminado:
   está mal diseñada, aunque cuadre mejor las cuentas.
 - No muestres el disponible en negativo ni en rojo. Un número que ella no entiende no es
   información, es ruido que la enoja.
+- **No metas signos `−` en ninguna cifra.** En Movimientos las filas van sin signo: el ícono
+  (💵 ingreso, 🛒 gasto, el emoji de la deuda en los abonos) y el color ya dicen qué es cada
+  una. Ella lee mejor un ícono que un símbolo.
+- No juntes gastos y abonos en un solo total de "salió": da a entender que el abono le salió
+  del bolsillo de gastar. Van en filas separadas.
+- No repitas el mismo dato dos veces en una fila. La categoría o la deuda solo aparecen bajo
+  el título cuando el título es una nota suya.
 - No metas gradientes de color, sombras tintadas ni bordes gruesos. La paleta es la del
   boceto de ella, pero la densidad y el detalle tipográfico son de recibo, y eso se mantiene.
 - No uses el verde (`--paid`) para nada que no sea una deuda liquidada.

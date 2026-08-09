@@ -246,7 +246,7 @@ button{cursor:pointer;border:none;background:none}
 .mvmain:active{opacity:.6}
 .tag{
   flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
-  font-family:var(--mono);font-size:13px;font-weight:700;
+  font-size:16px;line-height:1;
 }
 .tag.j{background:var(--accent-soft);color:var(--accent)}
 .tag.g{background:#F9E4EB;color:var(--spend)}
@@ -408,9 +408,10 @@ nav button.on{color:var(--ink)}
         <button onclick="shiftMonth(1)" aria-label="Mes siguiente">&#8594;</button>
       </div>
       <div class="row" style="border-top:1px solid var(--line);margin-top:6px">
-        <span class="k">Entró</span><span class="v acc" id="mvIn">$0</span>
+        <span class="k">Recibiste</span><span class="v acc" id="mvIn">$0</span>
       </div>
-      <div class="row"><span class="k">Salió</span><span class="v spend" id="mvOut">$0</span></div>
+      <div class="row"><span class="k">Gastaste</span><span class="v spend" id="mvOut">$0</span></div>
+      <div class="row"><span class="k">Abonaste a deudas</span><span class="v gold" id="mvAb">$0</span></div>
     </div>
     <div class="card" style="margin-top:12px">
       <h3>Movimientos</h3>
@@ -908,10 +909,12 @@ function renderMovs(){
   // entre o salga. Se ven como "apartaste X" bajo el ingreso que las creó.
   const list = delMes(mesVista).filter(m => m.tipo !== 'reserva')
     .sort((a,b)=> b.fecha.localeCompare(a.fecha) || b.id.localeCompare(a.id));
-  const inn = list.filter(x=>x.tipo==='jornada').reduce((s,x)=>s+x.monto,0);
-  const out = list.filter(x=>x.tipo!=='jornada').reduce((s,x)=>s+x.monto,0);
-  document.getElementById('mvIn').textContent = fmt(inn);
-  document.getElementById('mvOut').textContent = fmt(out);
+  // gastos y abonos van por separado: meterlos en un mismo "salió" da a
+  // entender que el abono le salió del bolsillo de gastar, y no es así
+  const suma = tp => list.filter(x => x.tipo === tp).reduce((s,x) => s + x.monto, 0);
+  document.getElementById('mvIn').textContent = fmt(suma('jornada'));
+  document.getElementById('mvOut').textContent = fmt(suma('gasto'));
+  document.getElementById('mvAb').textContent = fmt(suma('abono'));
 
   const el = document.getElementById('movList');
   if(!list.length){
@@ -920,22 +923,26 @@ function renderMovs(){
   }
   el.innerHTML = list.map(mv => {
     const cls = mv.tipo === 'jornada' ? 'j' : (mv.tipo === 'gasto' ? 'g' : 'p');
-    const letra = mv.tipo === 'jornada' ? 'I' : (mv.tipo === 'gasto' ? 'G' : 'A');
     const d = mv.tipo === 'abono' ? deuda(mv.deudaId) : null;
+    // el abono lleva el ícono de su deuda: se reconoce de un vistazo
+    const ico = mv.tipo === 'jornada' ? '💵' : (mv.tipo === 'gasto' ? '🛒' : (d && d.icono ? d.icono : '🧾'));
     const titulo = mv.nota || (mv.tipo==='jornada' ? 'Ingreso'
       : mv.tipo==='gasto' ? (mv.cat||'Gasto')
       : ('Abono a ' + (d ? d.nombre : 'una deuda borrada')));
-    const signo = mv.tipo === 'jornada' ? '+' : '−';
+    // sin signos: el menos la confundía, y el ícono con el color ya dicen qué es
     const color = mv.tipo === 'jornada' ? 'var(--accent)' : (mv.tipo==='gasto' ? 'var(--spend)' : 'var(--gold)');
     const repartido = mv.tipo === 'jornada' ? repartosDe(mv.id).reduce((s,a)=>s+a.monto,0) : 0;
     const extra = repartido > 0 ? '<small>apartaste ' + fmt(repartido) + '</small>' : '';
-    const meta = mv.tipo === 'gasto' && mv.cat ? ' · ' + esc(mv.cat)
-      : (mv.tipo === 'abono' && d ? ' · ' + esc(d.icono || '') + ' ' + esc(d.nombre) : '');
+    // la categoría o la deuda solo se repiten abajo si arriba va una nota suya;
+    // si no, el título ya las dice y sobraría verlas dos veces
+    const meta = !mv.nota ? ''
+      : mv.tipo === 'gasto' && mv.cat ? ' · ' + esc(mv.cat)
+      : mv.tipo === 'abono' && d ? ' · ' + esc(d.nombre) : '';
     return '<div class="mv">'
       + '<button class="mvmain" onclick="editMov(\''+mv.id+'\')" aria-label="Editar '+esc(titulo)+'">'
-      +   '<span class="tag '+cls+'">'+letra+'</span>'
+      +   '<span class="tag '+cls+'">'+esc(ico)+'</span>'
       +   '<span class="body"><span class="t">'+esc(titulo)+'</span><span class="d">'+fechaCorta(mv.fecha)+meta+'</span></span>'
-      +   '<span class="amt" style="color:'+color+'">'+signo+fmt(mv.monto)+extra+'</span>'
+      +   '<span class="amt" style="color:'+color+'">'+fmt(mv.monto)+extra+'</span>'
       + '</button>'
       + '<button class="del" onclick="delMov(\''+mv.id+'\')" aria-label="Eliminar">×</button></div>';
   }).join('');
@@ -950,7 +957,7 @@ function renderDeudaEdit(){
     const e = estadoDeuda(d);
     return '<div class="mv">'
       + '<button class="mvmain" onclick="openSheet(\'deuda\',\''+d.id+'\')" aria-label="Editar '+esc(d.nombre)+'">'
-      +   '<span class="tag j" style="font-size:16px">'+esc(d.icono||'🧾')+'</span>'
+      +   '<span class="tag j">'+esc(d.icono||'🧾')+'</span>'
       +   '<span class="body"><span class="t">'+esc(d.nombre)+'</span>'
       +     '<span class="d">Total '+fmt(d.total)+' · día '+d.diaPago+'</span></span>'
       +   '<span class="amt" style="color:'+(e.pagada?'var(--accent)':'var(--ink)')+'">'+fmt(e.saldo)+'</span>'
