@@ -6,7 +6,7 @@
 <title>Jornal</title>
 <meta name="description" content="Control de deudas por abonos, ingresos y gastos.">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#211C50">
+<meta name="theme-color" content="#2D1224">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Jornal">
@@ -14,21 +14,20 @@
 <link rel="icon" href="icon-192.png">
 <style>
 :root{
-  /* Paleta del boceto de la clienta: morado sobre blanco, texto azul muy
-     oscuro. El verde está reservado para una sola cosa, la deuda liquidada,
-     porque ella lo pidió explícitamente así. */
-  --ink:#211C50;        /* texto y botones primarios */
-  --paper:#F3F2FB;      /* fondo de la app */
+  /* Paleta rosada (Rose & Deep Berry): elegante, moderna y de alto contraste.
+     El verde está reservado para una sola cosa, la deuda liquidada. */
+  --ink:#2D1224;        /* texto y botones primarios (mora/vino oscuro) */
+  --paper:#FCF5F8;      /* fondo de la app (rosa pétalo suave) */
   --card:#FFFFFF;       /* tarjetas */
-  --accent:#6153CE;     /* morado: progreso, abonos, ingresos */
-  --accent-soft:#ECEAFB;
+  --accent:#D83A7D;     /* rosa vibrante: progreso, abonos, ingresos */
+  --accent-soft:#FDE8F1;/* rosa pastel suave */
   --paid:#12855C;       /* verde: solo para deuda pagada */
   --paid-soft:#DDF0E8;
-  --spend:#C0395F;      /* gastos */
-  --gold:#A9761D;       /* vencimientos */
-  --muted:#6D6890;
-  --line:#E4E1F2;
-  --track:#E7E4F6;      /* fondo de barras de progreso */
+  --spend:#B82850;      /* gastos (frambuesa/rubí) */
+  --gold:#B47818;       /* vencimientos (dorado cálido) */
+  --muted:#826877;      /* texto secundario (malva grisáceo) */
+  --line:#F0DFE7;       /* bordes y divisores */
+  --track:#F7EAF1;      /* fondo de barras de progreso */
   --display:"Avenir Next","Avenir",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
   --r:14px;
@@ -102,7 +101,7 @@ button{cursor:pointer;border:none;background:none}
   border:1px solid var(--line);border-bottom:none;
   border-radius:var(--r) var(--r) 0 0;
   padding:22px 20px 18px;
-  box-shadow:0 1px 0 rgba(33,28,80,.04);
+  box-shadow:0 1px 0 rgba(45,18,36,.04);
 }
 .receipt::after{
   content:"";position:absolute;left:-1px;right:-1px;bottom:-11px;height:12px;
@@ -127,7 +126,7 @@ button{cursor:pointer;border:none;background:none}
 .split{display:flex;height:9px;margin:20px 0 14px;border-radius:5px;overflow:hidden;background:var(--track)}
 .split i{display:block;height:100%}
 .split .a{background:var(--accent)}
-.split .b{background:#C6C1E4}
+.split .b{background:#E8BFD1}
 .legend{display:flex;gap:18px;font-size:12.5px;color:var(--muted)}
 .legend span{display:flex;align-items:center;gap:6px}
 .dot{width:8px;height:8px;border-radius:3px;display:inline-block}
@@ -229,7 +228,7 @@ button{cursor:pointer;border:none;background:none}
 .btn:active{transform:scale(.97)}
 .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line);background:var(--card)}
 .btn.wide{width:100%}
-.btn.danger{background:transparent;border-color:#EEC6D2;color:var(--spend)}
+.btn.danger{background:transparent;border-color:#F3CCD8;color:var(--spend)}
 .btn.acc{background:var(--accent);border-color:var(--accent)}
 .btn[disabled]{opacity:.45;pointer-events:none}
 
@@ -249,8 +248,8 @@ button{cursor:pointer;border:none;background:none}
   font-size:16px;line-height:1;
 }
 .tag.j{background:var(--accent-soft);color:var(--accent)}
-.tag.g{background:#F9E4EB;color:var(--spend)}
-.tag.p{background:#F5EAD6;color:var(--gold)}
+.tag.g{background:#FCE8F0;color:var(--spend)}
+.tag.p{background:#FDF3E3;color:var(--gold)}
 .mv .body{flex:1;min-width:0}
 .mv .t{display:block;font-size:15px;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mv .d{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em}
@@ -295,7 +294,7 @@ input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacin
 /* ---------- hoja inferior ---------- */
 .sheet{position:fixed;inset:0;z-index:40;display:none}
 .sheet.on{display:block}
-.sheet .scrim{position:absolute;inset:0;background:rgba(33,28,80,.42);animation:fade .2s ease}
+.sheet .scrim{position:absolute;inset:0;background:rgba(45,18,36,.42);animation:fade .2s ease}
 .sheet .panel{
   position:absolute;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;
   background:var(--paper);border-radius:20px 20px 0 0;
@@ -311,7 +310,7 @@ input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacin
 /* ---------- barra inferior ---------- */
 nav{
   position:fixed;left:0;right:0;bottom:0;z-index:30;
-  background:rgba(243,242,251,.92);backdrop-filter:saturate(180%) blur(14px);
+  background:rgba(252,245,248,.92);backdrop-filter:saturate(180%) blur(14px);
   border-top:1px solid var(--line);
   padding:8px 0 calc(env(safe-area-inset-bottom) + 6px);
 }
@@ -363,7 +362,7 @@ nav button.on{color:var(--ink)}
       <p class="sub" id="dispSub">Registra lo que recibas para empezar.</p>
       <div class="split"><i class="a" id="splitA" style="width:0"></i><i class="b" id="splitB" style="width:100%"></i></div>
       <div class="legend">
-        <span><i class="dot" style="background:#C6C1E4"></i> Para gastar <b id="legB" style="font-family:var(--mono)">$0</b></span>
+        <span><i class="dot" style="background:#E8BFD1"></i> Para gastar <b id="legB" style="font-family:var(--mono)">$0</b></span>
         <span><i class="dot" style="background:var(--accent)"></i> Guardado <b id="legA" style="font-family:var(--mono)">$0</b></span>
       </div>
     </div>
@@ -676,14 +675,16 @@ function totales(){
 }
 function deuda(id){ return S.deudas.find(d => d.id === id) || null; }
 function abonadoDe(id){
-  return S.movs.reduce((s,m) => (m.tipo==='abono' && m.deudaId===id) ? s + m.monto : s, 0);
+  const d = deuda(id);
+  return S.movs.reduce((s,m) => (m.tipo==='abono' && m.deudaId===id && (!d || !d.fechaInicio || m.fecha >= d.fechaInicio)) ? s + m.monto : s, 0);
 }
 /* Lo apartado para esta deuda en concreto y todavía sin abonar. El bolsillo
    de guardado es uno solo a efectos de cuentas; esto es la etiqueta que ella
    le puso a la plata al repartir el ingreso, y sirve para sugerir cuánto
    abonar y para mostrarlo en la tarjeta. */
 function guardadoDe(id){
-  const apartado = S.movs.reduce((s,m) => (m.tipo==='reserva' && m.deudaId===id) ? s + m.monto : s, 0);
+  const d = deuda(id);
+  const apartado = S.movs.reduce((s,m) => (m.tipo==='reserva' && m.deudaId===id && (!d || !d.fechaInicio || m.fecha >= d.fechaInicio)) ? s + m.monto : s, 0);
   return Math.max(apartado - abonadoDe(id), 0);
 }
 function estadoDeuda(d){
@@ -693,7 +694,7 @@ function estadoDeuda(d){
   return { abonado, saldo, pct, pagada: d.total > 0 && abonado >= d.total };
 }
 function totalDeudas(){
-  return S.deudas.reduce((a,d) => {
+  return S.deudas.filter(d => !d.archivada).reduce((a,d) => {
     const e = estadoDeuda(d);
     a.total += d.total; a.abonado += Math.min(e.abonado, d.total); a.saldo += e.saldo;
     return a;
@@ -723,7 +724,7 @@ function avisoRespaldo(){
 }
 function avisoVence(){
   const pend = S.deudas
-    .filter(d => !estadoDeuda(d).pagada)
+    .filter(d => !d.archivada && !estadoDeuda(d).pagada)
     .map(d => ({ d, p: proximoPago(d.diaPago) }))
     .filter(x => x.p.dias <= DIAS_VENCE)
     .sort((a,b) => a.p.dias - b.p.dias);
@@ -818,7 +819,7 @@ function renderAvisos(){
   const out = [];
   const yaAvisadas = new Set();
 
-  S.deudas.filter(d => !estadoDeuda(d).pagada)
+  S.deudas.filter(d => !d.archivada && !estadoDeuda(d).pagada)
     .map(d => ({ d, p: proximoPago(d.diaPago) }))
     .filter(x => x.p.dias <= DIAS_VENCE)
     .sort((a,b) => a.p.dias - b.p.dias)
@@ -830,7 +831,7 @@ function renderAvisos(){
         'Registrar abono', "openSheet('abono',null,'" + d.id + "')"));
     });
 
-  S.deudas.filter(d => { const e = estadoDeuda(d); return !e.pagada && e.pct >= PCT_CASI; })
+  S.deudas.filter(d => { const e = estadoDeuda(d); return !d.archivada && !e.pagada && e.pct >= PCT_CASI; })
     .filter(d => !yaAvisadas.has(d.id))
     .forEach(d => out.push(nudgeHTML(
       'A ' + esc(d.nombre) + ' solo le faltan ' + fmt(estadoDeuda(d).saldo) + ' para quedar pagada.',
@@ -854,17 +855,19 @@ function nudgeHTML(texto, accion, onclick, clase, posponible){
 
 function renderDeudas(){
   const el = document.getElementById('deudaList');
+  const activas = S.deudas.filter(d => !d.archivada);
+  const archivadas = S.deudas.filter(d => d.archivada);
   document.getElementById('deudasTitulo').textContent =
-    S.deudas.length ? 'Tus deudas · ' + S.deudas.length : 'Tus deudas';
-  if(!S.deudas.length){
+    activas.length ? 'Tus deudas · ' + activas.length : 'Tus deudas';
+  if(!activas.length){
     el.innerHTML = '<div class="card"><div class="empty" style="padding:28px 16px">'
-      + '<p>Todavía no has agregado ninguna deuda.</p>'
-      + '<small>Universidad, celular, moto, un préstamo: lo que pagues por abonos.</small>'
-      + '<button class="btn ghost wide" style="margin-top:16px" onclick="openSheet(\'deuda\')">Agregar la primera</button>'
+      + '<p>' + (archivadas.length ? 'Todas tus deudas están archivadas.' : 'Todavía no has agregado ninguna deuda.') + '</p>'
+      + '<small>' + (archivadas.length ? 'Puedes verlas o desarchivarlas en Ajustes.' : 'Universidad, celular, moto, un préstamo: lo que pagues por abonos.') + '</small>'
+      + '<button class="btn ghost wide" style="margin-top:16px" onclick="openSheet(\'deuda\')">Agregar nueva deuda</button>'
       + '</div></div>';
     return;
   }
-  el.innerHTML = S.deudas.map(d => {
+  let html = activas.map(d => {
     const e = estadoDeuda(d);
     const g = guardadoDe(d.id);
     const p = proximoPago(d.diaPago);
@@ -888,11 +891,17 @@ function renderDeudas(){
                     : '<span' + (cerca ? ' class="vence"' : '') + '>' + venceTxt + '</span>')
       + '</div>'
       + '<div class="deuda-acts">'
-      +   (e.pagada ? '' : '<button class="btn acc" onclick="openSheet(\'abono\',null,\'' + d.id + '\')">Registrar abono</button>')
+      +   (e.pagada ? '<button class="btn acc" onclick="reiniciarDeuda(\'' + d.id + '\')">🔄 Iniciar nuevo mes</button>'
+                    : '<button class="btn acc" onclick="openSheet(\'abono\',null,\'' + d.id + '\')">Registrar abono</button>')
       +   '<button class="btn ghost" onclick="openSheet(\'historial\',null,\'' + d.id + '\')">Ver abonos</button>'
       + '</div>'
       + '</div>';
   }).join('');
+
+  if(archivadas.length){
+    html += '<div style="text-align:center;margin-top:8px"><button class="nudge-no" style="font-size:12.5px;text-decoration:underline;text-underline-offset:2px" onclick="go(\'ajustes\')">📦 ' + archivadas.length + (archivadas.length===1 ? ' deuda archivada' : ' deudas archivadas') + ' en Ajustes</button></div>';
+  }
+  el.innerHTML = html;
 }
 
 let mesVista = hoy().slice(0,7);
@@ -955,12 +964,13 @@ function renderDeudaEdit(){
   }
   el.innerHTML = S.deudas.map(d => {
     const e = estadoDeuda(d);
+    const estadoTxt = d.archivada ? ' · <em style="color:var(--muted)">Archivada</em>' : (e.pagada ? ' · <em style="color:var(--paid)">Pagada</em>' : '');
     return '<div class="mv">'
       + '<button class="mvmain" onclick="openSheet(\'deuda\',\''+d.id+'\')" aria-label="Editar '+esc(d.nombre)+'">'
       +   '<span class="tag j">'+esc(d.icono||'🧾')+'</span>'
       +   '<span class="body"><span class="t">'+esc(d.nombre)+'</span>'
-      +     '<span class="d">Total '+fmt(d.total)+' · día '+d.diaPago+'</span></span>'
-      +   '<span class="amt" style="color:'+(e.pagada?'var(--accent)':'var(--ink)')+'">'+fmt(e.saldo)+'</span>'
+      +     '<span class="d">Total '+fmt(d.total)+' · día '+d.diaPago+estadoTxt+'</span></span>'
+      +   '<span class="amt" style="color:'+(d.archivada?'var(--muted)':(e.pagada?'var(--paid)':'var(--ink)'))+'">'+fmt(e.saldo)+'</span>'
       + '</button>'
       + '<button class="del" onclick="rmDeuda(\''+d.id+'\')" aria-label="Eliminar">×</button></div>';
   }).join('');
@@ -1014,8 +1024,8 @@ function openSheet(tipo, id, deudaId){
     b.innerHTML = `
       <div class="field"><label for="f_monto">Cuánto recibiste</label>
         <input id="f_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
-      ${S.deudas.length ? `<label>Guarda para tus deudas</label>
-      <div id="f_reps">${S.deudas.map(d => {
+      ${(S.deudas.filter(d => !d.archivada || previos.some(x => x.deudaId === d.id)).length) ? `<label>Guarda para tus deudas</label>
+      <div id="f_reps">${S.deudas.filter(d => !d.archivada || previos.some(x => x.deudaId === d.id)).map(d => {
         const e = estadoDeuda(d);
         return '<div class="rep' + (e.pagada ? ' lista' : '') + '">'
           + '<span class="rep-ico">' + esc(d.icono||'🧾') + '</span>'
@@ -1024,7 +1034,7 @@ function openSheet(tipo, id, deudaId){
           + '<input type="number" inputmode="decimal" min="0" placeholder="0" data-d="' + d.id + '" value="' + montoDe(d.id) + '">'
           + '</div>';
       }).join('')}</div>
-      <p class="hint" style="margin-top:10px">Esta plata se aparta y no cuenta como disponible. Cuando llegue la fecha de pago, la abonas desde la tarjeta de la deuda.</p>` : '<p class="hint">Todavía no tienes deudas. Agrégalas en Ajustes y podrás apartar de cada ingreso desde aquí.</p>'}
+      <p class="hint" style="margin-top:10px">Esta plata se aparta y no cuenta como disponible. Cuando llegue la fecha de pago, la abonas desde la tarjeta de la deuda.</p>` : '<p class="hint">No tienes deudas activas. Agrégalas en Ajustes y podrás apartar de cada ingreso desde aquí.</p>'}
       <p class="hint" id="f_prev" style="margin-top:12px">Escribe cuánto recibiste y cuánto apartas para cada deuda.</p>
       <div class="field"><label for="f_fecha">Fecha</label>
         <input id="f_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
@@ -1106,18 +1116,23 @@ function openSheet(tipo, id, deudaId){
   if(tipo === 'deuda'){
     t.textContent = m ? 'Editar deuda' : 'Nueva deuda';
     const ico = m ? (m.icono || '🧾') : '🧾';
+    const e = m ? estadoDeuda(m) : null;
     b.innerHTML = `
       <div class="field"><label for="d_nombre">Nombre</label>
         <input id="d_nombre" type="text" placeholder="Universidad, Celular, Moto…" value="${m ? esc(m.nombre) : ''}"></div>
       <div class="field"><label>Ícono</label>
         <div class="pills" id="d_icos">${ICONOS.map(i=>'<button class="pill'+(i===ico?' on':'')+'" data-i="'+i+'" style="font-size:18px;padding:8px 12px">'+i+'</button>').join('')}</div></div>
-      <div class="field" style="margin-top:16px"><label for="d_total">Total a pagar</label>
+      <div class="field" style="margin-top:16px"><label for="d_total">Total a pagar por mes/ciclo</label>
         <input id="d_total" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.total : ''}"></div>
       <div class="field"><label for="d_dia">Día del mes en que pagas</label>
         <input id="d_dia" type="number" inputmode="numeric" min="1" max="28" value="${m ? m.diaPago : 5}"></div>
-      <p class="hint">${m ? 'Ya le has abonado ' + fmt(abonadoDe(m.id)) + '. Si bajas el total por debajo de eso, la deuda queda pagada.' : 'Después registras abonos y el saldo va bajando hasta cero.'}</p>
+      <p class="hint">${m ? 'Abonado en este ciclo: ' + fmt(e.abonado) + (e.pagada ? ' (¡Deuda pagada!)' : '') : 'Después registras abonos y el saldo va bajando hasta cero.'}</p>
       <button class="btn acc wide" onclick="addDeuda()">${m ? 'Guardar cambios' : 'Crear deuda'}</button>
-      ${m ? '<button class="btn danger wide" style="margin-top:10px" onclick="rmDeuda(\'' + esc(m.id) + '\')">Eliminar esta deuda</button>' : ''}`;
+      ${m ? `
+        <button class="btn ghost wide" style="margin-top:10px" onclick="reiniciarDeuda('${esc(m.id)}')">🔄 Iniciar nuevo mes / ciclo</button>
+        <button class="btn ghost wide" style="margin-top:10px" onclick="archivarDeuda('${esc(m.id)}')">${m.archivada ? '📦 Desarchivar (mostrar en Inicio)' : '📦 Archivar (ocultar de Inicio)'}</button>
+        <button class="btn danger wide" style="margin-top:10px" onclick="rmDeuda('${esc(m.id)}')">Eliminar esta deuda</button>
+      ` : ''}`;
     b.querySelectorAll('#d_icos .pill').forEach(p => p.onclick = () => {
       b.querySelectorAll('#d_icos .pill').forEach(x=>x.classList.remove('on'));
       p.classList.add('on');
@@ -1140,20 +1155,32 @@ function openSheet(tipo, id, deudaId){
     const d = deuda(deudaId);
     if(!d){ toast('Esa deuda ya no existe.'); return; }
     const e = estadoDeuda(d);
-    const abonos = S.movs.filter(x => x.tipo==='abono' && x.deudaId===d.id)
+    const todosAbonos = S.movs.filter(x => x.tipo==='abono' && x.deudaId===d.id)
       .sort((a,b2)=> b2.fecha.localeCompare(a.fecha) || b2.id.localeCompare(a.id));
+    const abonos = todosAbonos.filter(a => !d.fechaInicio || a.fecha >= d.fechaInicio);
+    const abonosPrevios = todosAbonos.filter(a => d.fechaInicio && a.fecha < d.fechaInicio);
     t.textContent = 'Abonos a ' + d.nombre;
     b.innerHTML = `
-      <div class="row" style="padding-top:0"><span class="k">Total</span><span class="v">${fmt(d.total)}</span></div>
-      <div class="row"><span class="k">Abonado</span><span class="v acc">${fmt(e.abonado)}</span></div>
-      <div class="row"><span class="k">Saldo</span><span class="v ${e.pagada?'acc':'gold'}">${fmt(e.saldo)}</span></div>
+      <div class="row" style="padding-top:0"><span class="k">Total del ciclo</span><span class="v">${fmt(d.total)}</span></div>
+      <div class="row"><span class="k">Abonado en ciclo</span><span class="v acc">${fmt(e.abonado)}</span></div>
+      <div class="row"><span class="k">Saldo pendiente</span><span class="v ${e.pagada?'acc':'gold'}">${fmt(e.saldo)}</span></div>
       <div class="barra" style="margin:14px 0 18px"><i style="width:${e.pct}%"></i></div>
       ${abonos.length ? abonos.map(a =>
         '<div class="row"><span class="k">' + fechaCorta(a.fecha)
         + (a.nota ? ' · ' + esc(a.nota) : (a.origen ? ' · de un ingreso' : ''))
         + '</span><span class="v acc">' + fmt(a.monto) + '</span></div>').join('')
-        : '<div class="empty" style="padding:24px 12px"><p>Todavía no le has abonado nada.</p></div>'}
-      ${e.pagada ? '' : '<button class="btn acc wide" style="margin-top:18px" onclick="openSheet(\'abono\',null,\'' + d.id + '\')">Registrar abono</button>'}`;
+        : '<div class="empty" style="padding:16px 12px"><p>Sin abonos en el ciclo actual.</p></div>'}
+      ${abonosPrevios.length ? `
+        <div style="margin-top:18px;border-top:1px dashed var(--line);padding-top:12px">
+          <p class="eyebrow" style="margin-bottom:8px">Ciclos anteriores (${fmt(abonosPrevios.reduce((s,a)=>s+a.monto,0))})</p>
+          ${abonosPrevios.map(a =>
+            '<div class="row"><span class="k" style="color:var(--muted)">' + fechaCorta(a.fecha)
+            + (a.nota ? ' · ' + esc(a.nota) : '')
+            + '</span><span class="v" style="color:var(--muted)">' + fmt(a.monto) + '</span></div>').join('')}
+        </div>
+      ` : ''}
+      ${e.pagada ? '<button class="btn acc wide" style="margin-top:18px" onclick="reiniciarDeuda(\'' + d.id + '\')">🔄 Iniciar nuevo mes</button>'
+                 : '<button class="btn acc wide" style="margin-top:18px" onclick="openSheet(\'abono\',null,\'' + d.id + '\')">Registrar abono</button>'}`;
   }
 
   document.getElementById('sheet').classList.add('on');
@@ -1253,7 +1280,7 @@ function rmDeuda(id){
   const d = deuda(id); if(!d) return;
   const n = S.movs.filter(m => m.tipo==='abono' && m.deudaId===id).length;
   const msg = n
-    ? '¿Eliminar "' + d.nombre + '"? También se borran sus ' + n + (n===1?' abono.':' abonos.')
+    ? '¿Eliminar "' + d.nombre + '"? También se borran sus ' + n + (n===1?' abono.':' abonos.') + '\n\nTip: Si solo quieres ocultarla sin perder tus registros, usa "Archivar deuda".'
     : '¿Eliminar "' + d.nombre + '"?';
   if(!confirm(msg)) return;
   S.deudas = S.deudas.filter(x => x.id !== id);
@@ -1261,6 +1288,24 @@ function rmDeuda(id){
   S.movs = S.movs.filter(m => !((m.tipo==='abono' || m.tipo==='reserva') && m.deudaId===id));
   closeSheet();   // puede haberse llamado desde la hoja de edición
   render(); toast('Deuda eliminada');
+}
+
+function reiniciarDeuda(id){
+  const d = deuda(id); if(!d) return;
+  if(!confirm('¿Iniciar nuevo mes/ciclo para "' + d.nombre + '"?\n\nSu saldo volverá a ' + fmt(d.total) + ' y todos tus abonos anteriores se conservarán en el historial.')) return;
+  d.fechaInicio = hoy();
+  d.archivada = false;
+  closeSheet();
+  render();
+  toast('Ciclo reiniciado para ' + d.nombre + ' · ' + fmt(d.total));
+}
+
+function archivarDeuda(id){
+  const d = deuda(id); if(!d) return;
+  d.archivada = !d.archivada;
+  closeSheet();
+  render();
+  toast(d.archivada ? 'Deuda archivada (oculta de Inicio)' : 'Deuda visible en Inicio');
 }
 
 function delMov(id){

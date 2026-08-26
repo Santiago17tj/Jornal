@@ -232,27 +232,27 @@ coincidan; si no lo subes, la caché vieja sobrevive.
 
 ## 6. Sistema de diseño — respétalo
 
-**Paleta: la del boceto de la clienta.** Morado sobre blanco, texto azul muy oscuro. Se
-cambió desde la paleta original de recibo (marfil y verde) a petición suya.
+**Paleta: Rose & Deep Berry.** Gama rosada elegante y moderna sobre blanco, con texto vino/mora oscuro.
+El verde se mantiene reservado exclusivamente para la deuda liquidada.
 
 ```css
---ink:#211C50      /* texto y botones primarios */
---paper:#F3F2FB    /* fondo de la app */
+--ink:#2D1224      /* texto y botones primarios (mora/vino oscuro) */
+--paper:#FCF5F8    /* fondo de la app (rosa pétalo suave) */
 --card:#FFFFFF     /* tarjetas */
---accent:#6153CE   /* morado: progreso, abonos, ingresos */
---accent-soft:#ECEAFB
+--accent:#D83A7D   /* rosa vibrante: progreso, abonos, ingresos */
+--accent-soft:#FDE8F1 /* rosa pastel suave */
 --paid:#12855C     /* verde: SOLO deuda liquidada */
 --paid-soft:#DDF0E8
---spend:#C0395F    /* gastos */
---gold:#A9761D     /* vencimientos */
---muted:#6D6890    /* texto secundario */
---line:#E4E1F2     /* bordes y divisores */
---track:#E7E4F6    /* fondo de barras de progreso */
+--spend:#B82850    /* gastos (frambuesa/rubí) */
+--gold:#B47818     /* vencimientos (dorado cálido) */
+--muted:#826877    /* texto secundario (malva grisáceo) */
+--line:#F0DFE7     /* bordes y divisores */
+--track:#F7EAF1    /* fondo de barras de progreso */
 ```
 
 **El verde está reservado a una sola cosa: la deuda pagada.** Ella lo pidió explícito
 ("verde cuando una deuda esté completamente pagada"). Si lo usas para otra cosa, ese estado
-deja de destacar. Todo lo demás que sea positivo va en morado.
+deja de destacar. Todo lo demás que sea positivo va en rosa vibrante.
 
 Lo que **sí** se conservó de la dirección de recibo: la estructura. Cifras en monoespaciada
 tabular, densidad de líneas, el **borde inferior dentado** de la tarjeta principal (dientes
