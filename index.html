@@ -500,7 +500,8 @@ nav button.on{color:var(--ink)}
      saldo(deuda) = deuda.total − Σ abono de esa deuda
    ============================================================ */
 
-const KEY = 'jornal.v3';
+const KEY = 'jornal.v4';
+const KEY_V3 = 'jornal.v3';
 const KEY_V2 = 'jornal.v2';
 const KEY_V1 = 'jornal.v1';
 const DEFAULTS = {
@@ -519,7 +520,14 @@ const ICONOS = ['🎓','📱','🌐','🏠','🏍️','💳','💡','🧾','🚌
 /* ---- utilidades ---- */
 const fmt = n => '$' + Math.round(n||0).toLocaleString('es-CO');
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-const hoy = () => new Date().toISOString().slice(0,10);
+/* Fecha de HOY en hora local, no en UTC. `toISOString()` convierte a UTC y en
+   Colombia (UTC−5) eso adelanta el día a partir de las 7 de la noche: un gasto
+   registrado a las 8 pm quedaba fechado mañana, y el 31 a las 8 pm se iba al
+   mes siguiente y desaparecía del resumen del mes. */
+const hoy = () => {
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+};
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 function fechaCorta(iso){
   const [y,m,d] = iso.split('-').map(Number);
@@ -600,6 +608,36 @@ function migrarV2(v2){
   return out;
 }
 
+/* ---- migración v3 → v4 ------------------------------------------------
+   En v3 el ciclo de una deuda se cortaba por fecha (`fechaInicio`) y solo
+   contaban los abonos con `fecha >= fechaInicio`. Eso no puede separar dos
+   abonos del MISMO día, que es justo el caso normal: ella termina de pagar y
+   ahí mismo toca "Iniciar nuevo mes". El abono recién hecho seguía contando y
+   el saldo no se reiniciaba: el botón parecía no hacer nada.
+
+   v4 numera los ciclos. Cada deuda tiene `ciclo` y cada abono queda sellado
+   con el ciclo en que se hizo. Reiniciar es subir el número: exacto, sin
+   depender de fechas ni de la hora del teléfono.
+
+   La migración reparte los abonos existentes tal como se veían en pantalla:
+   los que quedaban dentro de `fechaInicio` van al ciclo actual y los
+   anteriores al ciclo previo. Así ningún saldo se mueve. */
+function migrarV3(v3){
+  const out = Object.assign({}, DEFAULTS, v3);
+  out.deudas = (v3.deudas || []).map(d => Object.assign({}, d, { ciclo: d.fechaInicio ? 1 : 0 }));
+  const porId = {};
+  out.deudas.forEach(d => porId[d.id] = d);
+  out.movs = (v3.movs || []).map(m => {
+    if(m.tipo !== 'abono' || m.ciclo != null) return m;
+    const d = porId[m.deudaId];
+    if(!d) return m;
+    // dentro del ciclo vigente si no había corte, o si el abono es igual o posterior al corte
+    const actual = !d.fechaInicio || m.fecha >= d.fechaInicio;
+    return Object.assign({}, m, { ciclo: actual ? d.ciclo : d.ciclo - 1 });
+  });
+  return out;
+}
+
 /* ---- almacenamiento tolerante a fallos (algunos previews bloquean localStorage) ---- */
 let memoria = null;
 function load(){
@@ -607,17 +645,24 @@ function load(){
     const raw = localStorage.getItem(KEY);
     if(raw) return Object.assign({}, DEFAULTS, JSON.parse(raw));
 
+    const v3 = localStorage.getItem(KEY_V3);
+    if(v3){
+      localStorage.setItem('jornal.v3.backup', v3);      // red de seguridad antes de tocar nada
+      const nuevo = migrarV3(JSON.parse(v3));
+      localStorage.setItem(KEY, JSON.stringify(nuevo));
+      return nuevo;
+    }
     const v2 = localStorage.getItem(KEY_V2);
     if(v2){
-      localStorage.setItem('jornal.v2.backup', v2);      // red de seguridad antes de tocar nada
-      const nuevo = migrarV2(JSON.parse(v2));
+      localStorage.setItem('jornal.v2.backup', v2);
+      const nuevo = migrarV3(migrarV2(JSON.parse(v2)));
       localStorage.setItem(KEY, JSON.stringify(nuevo));
       return nuevo;
     }
     const v1 = localStorage.getItem(KEY_V1);
     if(v1){
       localStorage.setItem('jornal.v1.backup', v1);
-      const nuevo = migrarV1(JSON.parse(v1));            // migrarV1 ya devuelve forma v3
+      const nuevo = migrarV3(migrarV1(JSON.parse(v1)));
       localStorage.setItem(KEY, JSON.stringify(nuevo));
       return nuevo;
     }
@@ -674,18 +719,29 @@ function totales(){
   return { recibido, reservado, abonado, gastado, libre, guardado };
 }
 function deuda(id){ return S.deudas.find(d => d.id === id) || null; }
+/* Abonado en el ciclo vigente. Se compara el sello `ciclo` del abono con el de
+   la deuda, no la fecha: dos abonos del mismo día pueden pertenecer a ciclos
+   distintos y por fecha era imposible separarlos. */
 function abonadoDe(id){
   const d = deuda(id);
-  return S.movs.reduce((s,m) => (m.tipo==='abono' && m.deudaId===id && (!d || !d.fechaInicio || m.fecha >= d.fechaInicio)) ? s + m.monto : s, 0);
+  const c = d ? (d.ciclo || 0) : 0;
+  return S.movs.reduce((s,m) =>
+    (m.tipo==='abono' && m.deudaId===id && (m.ciclo || 0) === c) ? s + m.monto : s, 0);
+}
+/* Todo lo abonado a esta deuda desde siempre, sumando los ciclos ya cerrados. */
+function abonadoTotalDe(id){
+  return S.movs.reduce((s,m) => (m.tipo==='abono' && m.deudaId===id) ? s + m.monto : s, 0);
 }
 /* Lo apartado para esta deuda en concreto y todavía sin abonar. El bolsillo
    de guardado es uno solo a efectos de cuentas; esto es la etiqueta que ella
    le puso a la plata al repartir el ingreso, y sirve para sugerir cuánto
    abonar y para mostrarlo en la tarjeta. */
 function guardadoDe(id){
-  const d = deuda(id);
-  const apartado = S.movs.reduce((s,m) => (m.tipo==='reserva' && m.deudaId===id && (!d || !d.fechaInicio || m.fecha >= d.fechaInicio)) ? s + m.monto : s, 0);
-  return Math.max(apartado - abonadoDe(id), 0);
+  // Sin filtrar por ciclo: la plata que apartó y todavía no abonó sigue siendo
+  // suya aunque empiece un mes nuevo. Filtrarla hacía que Inicio dijera
+  // "Guardado $80.000" y la tarjeta de la deuda no mostrara nada.
+  const apartado = S.movs.reduce((s,m) => (m.tipo==='reserva' && m.deudaId===id) ? s + m.monto : s, 0);
+  return Math.max(apartado - abonadoTotalDe(id), 0);
 }
 function estadoDeuda(d){
   const abonado = abonadoDe(d.id);
@@ -1157,8 +1213,9 @@ function openSheet(tipo, id, deudaId){
     const e = estadoDeuda(d);
     const todosAbonos = S.movs.filter(x => x.tipo==='abono' && x.deudaId===d.id)
       .sort((a,b2)=> b2.fecha.localeCompare(a.fecha) || b2.id.localeCompare(a.id));
-    const abonos = todosAbonos.filter(a => !d.fechaInicio || a.fecha >= d.fechaInicio);
-    const abonosPrevios = todosAbonos.filter(a => d.fechaInicio && a.fecha < d.fechaInicio);
+    const cAct = d.ciclo || 0;
+    const abonos = todosAbonos.filter(a => (a.ciclo || 0) === cAct);
+    const abonosPrevios = todosAbonos.filter(a => (a.ciclo || 0) !== cAct);
     t.textContent = 'Abonos a ' + d.nombre;
     b.innerHTML = `
       <div class="row" style="padding-top:0"><span class="k">Total del ciclo</span><span class="v">${fmt(d.total)}</span></div>
@@ -1249,8 +1306,12 @@ function addAbono(){
   if(!d){ toast('Esa deuda ya no existe.'); return; }
   const previo = editando ? (S.movs.find(x => x.id === editando) || {monto:0}).monto : 0;
   if(monto > estadoDeuda(d).saldo + previo){ toast('Es más de lo que debes en esa deuda.'); return; }
-  const nuevo = guardarMov({ tipo:'abono', fecha:document.getElementById('a_fecha').value || hoy(),
-    monto, deudaId: dId, nota:document.getElementById('a_nota').value.trim() });
+  const datos = { tipo:'abono', fecha:document.getElementById('a_fecha').value || hoy(),
+    monto, deudaId: dId, nota:document.getElementById('a_nota').value.trim() };
+  // solo al crear: si se sellara también al editar, corregir un abono viejo lo
+  // arrastraría al ciclo actual y le inflaría el saldo del mes
+  if(!editando) datos.ciclo = d.ciclo || 0;
+  const nuevo = guardarMov(datos);
   closeSheet(); render();
   const e = estadoDeuda(d);
   toast(e.pagada ? '¡' + d.nombre + ' quedó pagada!' : (nuevo ? 'Abono registrado · faltan ' + fmt(e.saldo) : 'Abono actualizado'));
@@ -1293,7 +1354,8 @@ function rmDeuda(id){
 function reiniciarDeuda(id){
   const d = deuda(id); if(!d) return;
   if(!confirm('¿Iniciar nuevo mes/ciclo para "' + d.nombre + '"?\n\nSu saldo volverá a ' + fmt(d.total) + ' y todos tus abonos anteriores se conservarán en el historial.')) return;
-  d.fechaInicio = hoy();
+  d.ciclo = (d.ciclo || 0) + 1;   // el sello del ciclo, no la fecha: así sí reinicia el mismo día
+  d.fechaInicio = hoy();          // solo informativo, para mostrar desde cuándo va el ciclo
   d.archivada = false;
   closeSheet();
   render();

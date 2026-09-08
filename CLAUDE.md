@@ -73,14 +73,17 @@ Funciona hoy:
 
 ## 4. Modelo de datos
 
-Un único objeto en `localStorage` bajo la clave `jornal.v3`:
+Un único objeto en `localStorage` bajo la clave `jornal.v4`:
 
 ```js
 {
   nombre: '',        // cómo la saluda la app; se pregunta la primera vez
   cats: ['Transporte', 'Comida', ...],
   deudas: [
-    { id, nombre, icono, total: Number, diaPago: Number }   // diaPago se limita a 1..28
+    // diaPago se limita a 1..28. `ciclo` es el número de ciclo vigente y sube
+    // al reiniciar; `fechaInicio` y `archivada` son opcionales
+    { id, nombre, icono, total: Number, diaPago: Number, ciclo: Number,
+      fechaInicio: 'YYYY-MM-DD', archivada: Boolean }
   ],
   movs: [
     {
@@ -90,6 +93,7 @@ Un único objeto en `localStorage` bajo la clave `jornal.v3`:
       monto: Number,     // siempre positivo
       cat: 'string',     // solo en 'gasto'
       deudaId: 'string', // en 'abono' y en 'reserva'
+      ciclo: Number,     // solo en 'abono': en qué ciclo de la deuda se hizo
       origen: 'string',  // solo en 'reserva': id del ingreso del que se apartó
       nota: 'string'     // opcional
     }
@@ -118,8 +122,27 @@ guardado  — lo que ya apartó para las deudas y no debe gastarse
 | `abono` | `guardado = max(guardado − monto, 0)`. **Nunca toca `libre`.** |
 
 ```
-saldo(deuda) = deuda.total − Σ abono de esa deuda
+saldo(deuda) = deuda.total − Σ abono de esa deuda EN SU CICLO VIGENTE
 ```
+
+### Ciclos de deuda
+
+`total` es lo que paga **por mes o por ciclo**, no una deuda que se extingue. Cuando termina
+de pagar el mes, "Iniciar nuevo mes" sube `d.ciclo` y el saldo vuelve al total.
+
+**El corte es el número de ciclo, nunca la fecha.** Cada abono se sella con `ciclo` al
+crearse y `abonadoDe()` solo suma los del ciclo vigente. Se intentó con `fechaInicio` y
+falló en el caso más común: ella termina de pagar y ahí mismo toca "Iniciar nuevo mes", el
+abono recién hecho es del mismo día, `fecha >= fechaInicio` lo seguía contando y **el botón
+no hacía nada**. Dos abonos del mismo día no se pueden separar por fecha. `fechaInicio` sigue
+guardándose pero es solo informativa; no la metas en ningún cálculo.
+
+Al **editar** un abono no se le vuelve a poner el sello: arrastraría un abono viejo al ciclo
+actual e inflaría el saldo del mes. Solo se sella al crear.
+
+`guardadoDe()` **no** filtra por ciclo: la plata que apartó y no ha abonado sigue siendo suya
+aunque empiece un mes nuevo. Filtrarla hacía que Inicio dijera "Guardado $80.000" y la
+tarjeta de esa deuda no mostrara nada apartado.
 
 Dos reglas que no son negociables, las dos por rechazo explícito de la clienta:
 
@@ -164,6 +187,10 @@ aparte, del día que ella paga.
 - **`migrarV2()`** — v2 no tenía reservas: repartir creaba el abono directamente. Se le añade
   una `reserva` gemela a cada abono que traiga `origen`. Los abonos sueltos no llevan gemela,
   porque en v2 salían del disponible y en v3 siguen saliendo de ahí con el bolsillo vacío.
+- **`migrarV3()`** — v3 cortaba los ciclos por `fechaInicio`. Numera los ciclos y sella cada
+  abono: los que quedaban dentro del corte van al ciclo vigente y los anteriores al previo,
+  de modo que **en pantalla no se mueve ninguna cifra**. Las cadenas v1 y v2 la encadenan al
+  final (`migrarV3(migrarV1(...))`).
 
 **Las dos conservan `libre` exacto y no mueven ningún saldo.** Está verificado con datos
 reales de cada versión; si tocas una migración, vuelve a comprobarlo.
@@ -204,6 +231,12 @@ Funciones principales:
 - `exportData()` `importData()` `wipe()` — respaldo
 - `go(vista)` — navegación entre las tres vistas
 - `fmt()` `uid()` `hoy()` `fechaCorta()` `esc()` `toast()` — utilidades
+
+**`hoy()` devuelve la fecha LOCAL, no UTC.** `new Date().toISOString()` convierte a UTC y en
+Colombia (UTC−5) eso adelanta el día desde las 7 de la noche: un gasto de las 8 pm quedaba
+fechado mañana, y el 31 a las 8 pm se iba al mes siguiente y desaparecía del resumen. Era un
+error intermitente que solo aparecía de noche. No vuelvas a `toISOString()` para fechas
+locales.
 
 Todo texto que venga del usuario pasa por `esc()` antes de entrar al DOM vía `innerHTML`.
 Mantenlo: es la única defensa contra inyección en esta app.
@@ -341,8 +374,14 @@ Validaciones mínimas antes de dar algo por terminado:
 - **En ninguna pantalla puede aparecer un negativo del disponible.** Prueba también con solo
   gastos y sin ingresos, y con un gasto mayor que lo disponible: debe quedar en `$0` y el
   gasto completo debe seguir viéndose en el resumen del mes.
-- Las migraciones desde `jornal.v1` y `jornal.v2` conservan `libre` exacto, no mueven ningún
+- Las migraciones desde `jornal.v1`, `v2` y `v3` conservan `libre` exacto, no mueven ningún
   saldo y dejan su `.backup`.
+- **Reiniciar el ciclo el mismo día en que terminó de pagar sí reinicia.** Registra un abono
+  que liquide la deuda y toca "Iniciar nuevo mes" enseguida: el saldo debe volver al total y
+  la deuda dejar de estar "pagada". Es el caso que rompió la primera versión de los ciclos.
+- Editar un abono de un ciclo anterior no cambia el saldo del ciclo actual.
+- Prueba con el reloj después de las 7 pm: la fecha por defecto de un movimiento nuevo debe
+  ser la de hoy, no la de mañana.
 - Prueba en ancho de 375px (iPhone SE) y 430px (Pro Max), sin desborde horizontal.
 - Prueba en modo avión que la app abre y guarda.
 - Exporta, borra todo, importa: los datos deben volver idénticos.
