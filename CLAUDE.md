@@ -58,14 +58,17 @@ Funciona hoy:
 - **Registrar ingreso**: monto recibido + **reparto en pesos** a cada deuda, con lo que queda
   libre calculado en vivo. Guardar crea el ingreso y una **reserva** por deuda: esa plata se
   aparta, no se paga todavía.
-- **Registrar gasto**: monto + categoría (pills) + fecha + nota.
+- **Registrar gasto**: caja para **dictar o escribir** la frase suelta ("gasté veinte mil en
+  almuerzo"), que rellena sola monto, categoría y nota; más monto + categoría (pills) + fecha
+  + nota editables a mano.
 - **Registrar abono** a una deuda, con tope en el saldo. Sugiere lo apartado para ella.
 - **Pantalla de arranque** con monedas apilándose, y bienvenida que pregunta el nombre la
   primera vez. Inicio saluda según la hora; el nombre se cambia en Ajustes.
 - **Movimientos**: navegación por mes, totales separados (recibiste / gastaste / abonaste),
   tocar una fila la abre para editarla (escribe sobre el mismo `id`), eliminar con
   confirmación. Las filas van **sin signos**: ícono y color dicen qué es cada una.
-- **Ajustes**: CRUD de deudas (nombre, ícono, total, día de pago), CRUD de categorías.
+- **Ajustes**: CRUD de deudas (nombre, ícono, total, día de pago), CRUD de categorías, y
+  activar los **avisos del sistema** para los vencimientos.
 - **Respaldo**: exportar/importar JSON, estado de la última copia, recordatorio a los 15 días
   sin respaldar, borrar todo con doble confirmación.
 
@@ -99,7 +102,9 @@ Un único objeto en `localStorage` bajo la clave `jornal.v4`:
     }
   ],
   ultimoRespaldo: null,  // 'YYYY-MM-DD' de la última copia descargada o restaurada
-  avisoOculto: null      // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
+  avisoOculto: null,     // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
+  avisosOn: false,       // activó los avisos del sistema para los vencimientos
+  avisados: {}           // 'deudaId|fechaVenc' -> día en que ya se avisó, para no repetir
 }
 ```
 
@@ -195,6 +200,12 @@ aparte, del día que ella paga.
 **Las dos conservan `libre` exacto y no mueven ningún saldo.** Está verificado con datos
 reales de cada versión; si tocas una migración, vuelve a comprobarlo.
 
+`conDefaults(base)` es la única forma correcta de crear un estado: `cats` y `avisados` son
+mutables, y un `Object.assign({}, DEFAULTS, ...)` pelado deja el estado compartiendo la MISMA
+referencia que `DEFAULTS`. La primera notificación guardada ensuciaba así los valores por
+defecto de toda la sesión y se los pasaba al siguiente estado. Úsalo en `load()`, en las
+migraciones, en `importData()` y en `wipe()`.
+
 Si cambias la forma de los datos, **incrementa la clave** y escribe la migración. Nunca dejes
 que alguien con datos viejos abra la app y vea todo en cero. Agregar un campo *opcional* que
 degrada bien no cuenta: `load()` hace `Object.assign({}, DEFAULTS, guardado)`.
@@ -230,7 +241,82 @@ Funciones principales:
 - `addJornada()` `addGasto()` `addAbono()` `addDeuda()` `delMov()` `rmDeuda()` — mutaciones
 - `exportData()` `importData()` `wipe()` — respaldo
 - `go(vista)` — navegación entre las tres vistas
+- `interpretarGasto(texto, cats)` — frase suelta a `{monto, cat, nota}`; se apoya en
+  `normFrase()`, `tokANumero()`, `esArticulo()`, `extraerMonto()`, `detectarCat()`, `sacarNota()`
+- `aplicarFrase(b, cats)` — rellena la hoja desde la frase respetando lo que ella tocó
+- `activarAvisos()` / `desactivarAvisos()` / `revisarAvisosSistema()` — avisos del sistema;
+  `hayAvisos()` y `estaInstalada()` son las comprobaciones previas
 - `fmt()` `uid()` `hoy()` `fechaCorta()` `esc()` `toast()` — utilidades
+
+### Dictar o escribir un gasto
+
+La hoja de gasto (solo al crear, no al editar) abre con una caja donde ella puede **escribir
+o dictar** una frase suelta: *"gasté veinte mil en almuerzo"*. `interpretarGasto(texto, cats)`
+la convierte en `{monto, cat, nota}` y rellena los campos. Es análisis local puro: sin red,
+sin librerías, sin servicios.
+
+**Nunca guarda sola.** Rellena y ella revisa antes de darle Guardar, y el eco dice qué
+entendió. Por eso una interpretación errada es inofensiva; no hace falta que el parser sea
+perfecto, hace falta que sea transparente.
+
+Reglas del parser que costaron pruebas y no hay que deshacer:
+
+- `"20.000"` es separador de miles y `"20,5"` es decimal. La diferencia es **cuántos dígitos
+  siguen al separador**: exactamente tres, son miles.
+- **`"un"` es artículo, no la cifra 1**, salvo que le siga un multiplicador. Sin esto
+  *"compré un cuaderno de ocho mil"* daba $1.
+- El punto final que mete el dictado se elimina; si no, `"almuerzo."` no casa con la categoría.
+- Jerga local: `luca` y `barra` son mil, `palo` es millón.
+
+**Quién manda sobre cada campo.** La frase gobierna los campos que ella no haya tocado; en
+cuanto corrige uno a mano queda suyo (`dataset.suya`) y la frase no vuelve a pisarlo. Esto no
+es cosmético: el resultado **final** del dictado llega un segundo después del provisional, y
+sin esta regla le borraba la corrección que acababa de hacer. Si vacía el campo, se lo
+devuelve a la frase. Y lo que la frase gobierna lo **limpia** cuando deja de decirlo, para que
+no quede un monto viejo pegado.
+
+### Por qué NO hay botón de micrófono propio
+
+La voz entra por el **micrófono del teclado de iOS**, que escribe en la caja como cualquier
+otra entrada de texto. **No se usa la Web Speech API, y es deliberado.** Se investigó y se
+descartó por dos razones independientes, cualquiera de ellas suficiente:
+
+1. **Manda el audio a servidores de Apple.** WebKit solo reconoce en el dispositivo si hay
+   modelo descargado para ese idioma; si no, va al servidor. Eso rompe dos reglas duras:
+   "debe funcionar offline" (§2) y "no metas telemetría ni llamadas de red de ningún tipo"
+   (§9). En una app cuya promesa a la clienta es que sus datos no salen del teléfono, mandar
+   su voz afuera contradice el producto, no solo el brief.
+2. **WebKit la deja fuera de las apps instaladas en pantalla de inicio**
+   ([bug 225298](https://bugs.webkit.org/show_bug.cgi?id=225298), RESOLVED/LATER desde 2021,
+   un ingeniero de Apple lo dijo por escrito). Y lo peor: **falla en silencio** — el objeto
+   existe, `start()` tiene éxito y no llega ni resultado ni error, así que detectar la
+   función no sirve para decidir si ofrecerla.
+
+El micrófono del teclado no tiene ninguno de los dos problemas: es nativo, funciona en la app
+instalada y no pasa por este código.
+
+**Si algún día alguien quiere volver a intentarlo**, §2 obliga a proponerlo antes. Y haría
+falta un vigía por tiempo (no `onerror`, que no se dispara) para detectar el fallo mudo.
+
+### Avisos del sistema
+
+`showNotification()` desde `navigator.serviceWorker.ready` **sí funciona sin servidor** en
+iOS 16.4+, pero solo con la app **instalada en pantalla de inicio**: en una pestaña de Safari
+el objeto `Notification` ni existe. Por eso todo se comprueba con `typeof`, nunca leyendo
+`Notification.permission` directo.
+
+Lo que **no** se puede sin servidor: programar un aviso para cuando la app esté cerrada. No
+hay Notification Triggers (murió), ni Background Sync, ni Periodic Sync en iOS. Lo único que
+despierta una PWA instalada es un push, y eso exige backend.
+
+Así que el trato es: `revisarAvisosSistema()` corre **al abrir la app** y lanza una
+notificación real por cada deuda que venza dentro de `DIAS_VENCE`. Queda en el centro de
+notificaciones del iPhone, así que la ve después aunque cierre. `S.avisados` evita repetirla
+para el mismo vencimiento y se poda a los 60 días.
+
+El permiso **debe** pedirse desde un toque suyo: pedirlo al cargar lo resuelve `denied` sin
+mostrar nada. Y si lo niega una vez, la app no puede volver a preguntar — solo se cambia en
+Ajustes de iOS. Por eso la tarjeta explica para qué sirve antes de disparar el prompt.
 
 **`hoy()` devuelve la fecha LOCAL, no UTC.** `new Date().toISOString()` convierte a UTC y en
 Colombia (UTC−5) eso adelanta el día desde las 7 de la noche: un gasto de las 8 pm quedaba
@@ -382,6 +468,13 @@ Validaciones mínimas antes de dar algo por terminado:
 - Editar un abono de un ciclo anterior no cambia el saldo del ciclo actual.
 - Prueba con el reloj después de las 7 pm: la fecha por defecto de un movimiento nuevo debe
   ser la de hoy, no la de mañana.
+- **La frase no pisa lo que ella corrigió.** Dicta algo, cambia el monto a mano, y simula que
+  llega el resultado final del dictado: su monto debe sobrevivir.
+- **La frase limpia lo suyo.** Escribe una frase con cifra, bórrala y escribe otra sin cifra:
+  el monto no puede quedarse pegado.
+- Avisos: con el permiso simulado en `granted`, abrir la app debe lanzar una notificación solo
+  por la deuda que vence dentro de `DIAS_VENCE`, no repetirla al reabrir, y no lanzar nada por
+  las pagadas ni las archivadas. Con el permiso en `denied` no puede reventar nada.
 - Prueba en ancho de 375px (iPhone SE) y 430px (Pro Max), sin desborde horizontal.
 - Prueba en modo avión que la app abre y guarda.
 - Exporta, borra todo, importa: los datos deben volver idénticos.
@@ -423,4 +516,10 @@ Validaciones mínimas antes de dar algo por terminado:
   porcentajes: "hoy $40.000 a la universidad y me quedan $30.000". Se probó con porcentaje y
   se descartó a petición suya.
 - No prometas notificaciones push. Una PWA en iOS solo las tiene desde 16.4 y **necesita un
-  servidor de push**; sin backend lo máximo es avisar cuando ella abre la app.
+  servidor de push**; sin backend lo máximo es lanzar la notificación cuando ella abre la app
+  (que es lo que hace `revisarAvisosSistema()`), nunca con la app cerrada.
+- **No metas un botón de micrófono con la Web Speech API.** Manda el audio a servidores de
+  Apple y WebKit la deja fuera de las apps instaladas, donde además falla sin avisar. El
+  micrófono del teclado de iOS hace lo mismo, es nativo y no sale del teléfono. Ver sección 5.
+- No hagas que la frase dictada guarde sola. Rellena los campos y ella confirma: así una
+  interpretación errada no cuesta nada.

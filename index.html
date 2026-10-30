@@ -281,6 +281,16 @@ input.money{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacin
 }
 .pill.on{background:var(--ink);color:#FFF;border-color:var(--ink)}
 
+/* ---------- dictar o escribir un gasto ---------- */
+.dictado{
+  border:1px dashed var(--accent);border-radius:12px;
+  background:var(--accent-soft);padding:12px 13px;margin-bottom:18px;
+}
+.dictado-fila{display:flex;gap:8px;align-items:stretch}
+.dictado-fila input{flex:1;background:#FFF}
+.dictado-eco{margin:9px 0 0;font-size:13px;color:var(--muted);line-height:1.45;min-height:1.3em}
+.dictado-eco b{color:var(--accent);font-family:var(--mono);font-variant-numeric:tabular-nums}
+
 /* reparto de un ingreso entre las deudas */
 .rep{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px dashed var(--line)}
 .rep:last-of-type{border-bottom:none}
@@ -437,6 +447,12 @@ nav button.on{color:var(--ink)}
     </div>
 
     <div class="card" style="margin-top:12px">
+      <h3>Avisos de vencimiento</h3>
+      <p class="hint" style="margin-top:0" id="avisosTexto"></p>
+      <button class="btn ghost wide" id="avisosBtn" onclick="S.avisosOn ? desactivarAvisos() : activarAvisos()"></button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
       <h3>Categorías de gasto</h3>
       <div class="pills" id="catEdit"></div>
       <div class="field" style="margin-top:14px">
@@ -510,7 +526,9 @@ const DEFAULTS = {
   deudas: [],         // {id, nombre, icono, total, diaPago}
   movs: [],           // {id, tipo:'jornada'|'reserva'|'gasto'|'abono', fecha, monto, ...}
   ultimoRespaldo: null,  // 'YYYY-MM-DD' de la última copia descargada o restaurada
-  avisoOculto: null      // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
+  avisoOculto: null,     // 'YYYY-MM-DD' en que se descartó el recordatorio de respaldo
+  avisosOn: false,       // pidió que los vencimientos salgan como aviso del teléfono
+  avisados: {}           // 'deudaId|fechaVenc' -> día en que ya se avisó, para no repetir
 };
 const DIAS_RESPALDO = 15;   // a partir de aquí se recuerda descargar copia
 const DIAS_SNOOZE   = 7;    // cuánto calla el aviso al descartarlo
@@ -543,6 +561,120 @@ function toast(msg){
 }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+/* ---- intérprete de frases de gasto -----------------------------------
+   Convierte "gasté veinte mil en almuerzo" en {monto:20000, cat:'Comida'}.
+   Sirve igual si lo dicta o si lo escribe: el dictado solo rellena esta misma
+   caja de texto. Todo el análisis es local, sin red ni librerías.
+
+   NUNCA guarda sola: rellena los campos y ella revisa antes de darle Guardar.
+   Por eso una interpretación errada es inofensiva. */
+const NUM_PALABRA = {
+  cero:0, un:1, uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5, seis:6, siete:7,
+  ocho:8, nueve:9, diez:10, once:11, doce:12, trece:13, catorce:14, quince:15,
+  dieciseis:16, diecisiete:17, dieciocho:18, diecinueve:19, veinte:20,
+  veintiun:21, veintiuno:21, veintiuna:21, veintidos:22, veintitres:23,
+  veinticuatro:24, veinticinco:25, veintiseis:26, veintisiete:27,
+  veintiocho:28, veintinueve:29, treinta:30, cuarenta:40, cincuenta:50,
+  sesenta:60, setenta:70, ochenta:80, noventa:90,
+  cien:100, ciento:100, doscientos:200, doscientas:200, trescientos:300, trescientas:300,
+  cuatrocientos:400, cuatrocientas:400, quinientos:500, quinientas:500,
+  seiscientos:600, seiscientas:600, setecientos:700, setecientas:700,
+  ochocientos:800, ochocientas:800, novecientos:900, novecientas:900
+};
+// multiplicadores, con la jerga de acá: luca y barra son mil, palo es millón
+const MIL_PAL = ['mil','miles','luca','lucas','barra','barras','k'];
+const MILLON_PAL = ['millon','millones','palo','palos','melo','melos'];
+const PEGA_PAL = ['y','de','con','pesos','peso','punto','coma'];
+
+function normFrase(s){
+  return String(s||'').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9.,\s]/g,' ')
+    // el punto y la coma solo valen ENTRE dígitos (20.000). El punto final que
+    // mete el dictado se va; si no, "almuerzo." no coincide con la categoría
+    .replace(/[.,]/g, (c,i,str) => (/\d/.test(str[i-1]||'') && /\d/.test(str[i+1]||'')) ? c : ' ')
+    .replace(/(\d)([a-z])/g, '$1 $2')   // "20mil" y "20k" vienen pegados
+    .replace(/\s+/g,' ').trim();
+}
+/* "20.000" es separador de miles, "20,5" es decimal: la diferencia está en
+   cuántos dígitos siguen al separador. Exactamente tres, son miles. */
+function tokANumero(tok){
+  if(!/^\d/.test(tok)) return null;
+  if(/^\d{1,3}([.,]\d{3})+$/.test(tok)) return Number(tok.replace(/[.,]/g,''));
+  if(/^\d+[.,]\d{1,2}$/.test(tok)) return Number(tok.replace(',','.'));
+  if(/^\d+$/.test(tok)) return Number(tok);
+  return null;
+}
+/* "un" es cifra en "un millón" pero artículo en "un cuaderno": se decide por
+   lo que venga detrás. Sin esto, "compré un cuaderno de ocho mil" daba $1. */
+function esArticulo(tok, sig){
+  if(tok !== 'un' && tok !== 'uno' && tok !== 'una') return false;
+  if(!sig) return true;
+  return !(MIL_PAL.includes(sig) || MILLON_PAL.includes(sig)
+    || NUM_PALABRA[sig] !== undefined || tokANumero(sig) !== null);
+}
+function extraerMonto(tokens){
+  let cur = 0, total = 0, visto = false, hubo = false;
+  for(let i = 0; i < tokens.length; i++){
+    const tok = tokens[i];
+    if(esArticulo(tok, tokens[i+1])) continue;
+    const n = tokANumero(tok);
+    if(n !== null){ cur += n; visto = hubo = true; continue; }
+    if(NUM_PALABRA[tok] !== undefined){ cur += NUM_PALABRA[tok]; visto = hubo = true; continue; }
+    if(tok === 'medio' || tok === 'media'){ cur += 0.5; visto = true; continue; }
+    if(MIL_PAL.includes(tok)){ cur = (cur||1)*1000; total += cur; cur = 0; visto = hubo = true; continue; }
+    if(MILLON_PAL.includes(tok)){ cur = (cur||1)*1000000; total += cur; cur = 0; visto = hubo = true; continue; }
+    if(PEGA_PAL.includes(tok)) continue;
+    if(visto) break;    // palabra ajena después de la cifra: la cifra terminó
+  }
+  total += cur;
+  return (hubo && total > 0) ? Math.round(total) : null;
+}
+/* Palabras que delatan la categoría. Solo se proponen categorías que ella
+   tenga creadas; si inventó otras, se busca su nombre dentro de la frase. */
+const PISTAS_CAT = {
+  Transporte: ['pasaje','pasajes','bus','buseta','busetas','taxi','uber','didi','indriver','metro','transmilenio','mio','gasolina','moto','peaje','transporte','flota','colectivo'],
+  Comida: ['almuerzo','almorce','desayuno','desayune','cena','cene','comida','comi','mecato','tinto','cafe','onces','refresco','gaseosa','jugo','helado','empanada','pan','panaderia','restaurante','corrientazo','hamburguesa','pizza','domicilio','rappi'],
+  Universidad: ['fotocopias','fotocopia','copias','matricula','semestre','libro','libros','impresiones','impresion','imprimir','cuaderno','cuadernos','marcador','universidad','uni','laboratorio','papeleria','argollado'],
+  Casa: ['arriendo','servicios','mercado','recibo','luz','agua','gas','internet','wifi','aseo','detergente','jabon','casa','hogar','cocina']
+};
+function detectarCat(texto, cats){
+  const t = ' ' + texto + ' ';
+  let mejor = null, puntaje = 0;
+  for(const cat of cats){
+    const nc = normFrase(cat);
+    let p = 0;
+    if(nc && t.includes(' ' + nc + ' ')) p += 10;        // dijo el nombre tal cual
+    else if(nc.length > 3 && t.includes(nc)) p += 6;     // lo dijo pegado o en plural
+    for(const k of (PISTAS_CAT[cat] || [])) if(t.includes(' ' + k + ' ')) p += 4;
+    if(p > puntaje){ puntaje = p; mejor = cat; }
+  }
+  return puntaje > 0 ? mejor : null;
+}
+const RELLENO_PAL = ['gaste','me','en','compre','pague','el','la','los','las','para','por','hoy','ayer','mi','al'];
+function sacarNota(tokens){
+  const fuera = new Set(RELLENO_PAL.concat(MIL_PAL, MILLON_PAL, PEGA_PAL, ['medio','media','un','uno','una']));
+  const pal = tokens.filter(t => tokANumero(t) === null && NUM_PALABRA[t] === undefined && !fuera.has(t));
+  if(!pal.length) return '';
+  const n = pal.join(' ');
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+function interpretarGasto(texto, cats){
+  const t = normFrase(texto);
+  if(!t) return { monto:null, cat:null, nota:'' };
+  const tokens = t.split(' ');
+  return { monto: extraerMonto(tokens), cat: detectarCat(t, cats), nota: sacarNota(tokens) };
+}
+
+/* Copia fresca de los valores por defecto. `cats` y `avisados` son mutables:
+   con `Object.assign({}, DEFAULTS, ...)` el estado se quedaba con la MISMA
+   referencia que DEFAULTS, así que la primera notificación guardada ensuciaba
+   los valores por defecto de toda la sesión y se los pasaba al siguiente
+   estado (por ejemplo al importar una copia vieja). */
+function conDefaults(base){
+  return Object.assign({}, DEFAULTS, { cats: DEFAULTS.cats.slice(), avisados: {} }, base || {});
+}
+
 /* ---- migración v1 → v2 ------------------------------------------------
    v1 tenía UNA cuota mensual y un porcentaje que se apartaba de cada
    jornada. v2 tiene N deudas y abonos en pesos. La equivalencia:
@@ -553,7 +685,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp
        contar la plata dos veces
    La copia intacta de v1 queda en 'jornal.v1.backup' pase lo que pase. */
 function migrarV1(v1){
-  const out = Object.assign({}, DEFAULTS, {
+  const out = conDefaults({
     cats: (v1.cats && v1.cats.length) ? v1.cats.slice() : DEFAULTS.cats.slice(),
     deudas: [], movs: [],
     ultimoRespaldo: v1.ultimoRespaldo || null,
@@ -598,7 +730,7 @@ function migrarV1(v1){
    Los abonos sueltos de v2 no llevan gemela: salían del disponible y en v3
    siguen saliendo de ahí cuando el bolsillo está vacío. */
 function migrarV2(v2){
-  const out = Object.assign({}, DEFAULTS, v2, {movs: []});
+  const out = conDefaults(Object.assign({}, v2, {movs: []}));
   for(const m of (v2.movs || [])){
     if(m.tipo === 'abono' && m.origen){
       out.movs.push({ id: uid(), tipo:'reserva', fecha:m.fecha, monto:m.monto, deudaId:m.deudaId, origen:m.origen });
@@ -623,7 +755,7 @@ function migrarV2(v2){
    los que quedaban dentro de `fechaInicio` van al ciclo actual y los
    anteriores al ciclo previo. Así ningún saldo se mueve. */
 function migrarV3(v3){
-  const out = Object.assign({}, DEFAULTS, v3);
+  const out = conDefaults(v3);
   out.deudas = (v3.deudas || []).map(d => Object.assign({}, d, { ciclo: d.fechaInicio ? 1 : 0 }));
   const porId = {};
   out.deudas.forEach(d => porId[d.id] = d);
@@ -643,7 +775,7 @@ let memoria = null;
 function load(){
   try{
     const raw = localStorage.getItem(KEY);
-    if(raw) return Object.assign({}, DEFAULTS, JSON.parse(raw));
+    if(raw) return conDefaults(JSON.parse(raw));
 
     const v3 = localStorage.getItem(KEY_V3);
     if(v3){
@@ -666,9 +798,9 @@ function load(){
       localStorage.setItem(KEY, JSON.stringify(nuevo));
       return nuevo;
     }
-    return Object.assign({}, DEFAULTS);
+    return conDefaults();
   }catch(e){
-    if(!memoria) memoria = Object.assign({}, DEFAULTS);
+    if(!memoria) memoria = conDefaults();
     return memoria;
   }
 }
@@ -786,6 +918,71 @@ function avisoVence(){
     .sort((a,b) => a.p.dias - b.p.dias);
   return pend.length ? pend[0] : null;
 }
+/* ---- avisos del teléfono --------------------------------------------
+   Sin servidor no se puede programar una notificación para el futuro: lo que
+   sí se puede es lanzarla cuando ella abre la app y hay algo por vencer, y esa
+   notificación queda en el centro de notificaciones del iPhone aunque cierre.
+   No reemplaza al aviso dentro de la app, lo acompaña.
+   Importante: en iOS esto solo existe si la app está instalada en pantalla de
+   inicio; en una pestaña de Safari el permiso ni se puede pedir. */
+const hayAvisos = () => typeof Notification !== 'undefined' && 'serviceWorker' in navigator;
+const estaInstalada = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+  || navigator.standalone === true;
+
+function activarAvisos(){
+  if(!hayAvisos()){ toast('Tu teléfono no permite avisos desde la app.'); return; }
+  if(!estaInstalada() && /iPhone|iPad|iPod/.test(navigator.userAgent)){
+    alert('Para que el iPhone te avise, primero agrega Jornal a la pantalla de inicio:\n\nSafari → botón compartir → Añadir a pantalla de inicio.\n\nDespués ábrela desde el ícono y vuelve a intentarlo.');
+    return;
+  }
+  // el permiso debe pedirse desde un toque suyo; pedirlo al cargar lo rechaza iOS
+  Notification.requestPermission().then(p => {
+    if(p === 'granted'){
+      S.avisosOn = true; render();
+      toast('Listo, te avisaré de los vencimientos.');
+      revisarAvisosSistema();
+    } else {
+      S.avisosOn = false; render();
+      toast(p === 'denied' ? 'Los bloqueaste. Actívalos en Ajustes de iOS.' : 'No se activaron.');
+    }
+  }).catch(() => toast('No pude pedir el permiso.'));
+}
+function desactivarAvisos(){
+  S.avisosOn = false; render();
+  toast('Ya no te avisaré por el teléfono.');
+}
+/* Lanza un aviso por cada deuda que esté por vencer y no se haya avisado ya
+   para esa misma fecha. El `tag` hace que iOS reemplace el aviso anterior de
+   esa deuda en vez de apilar uno nuevo cada vez que abre la app. */
+function revisarAvisosSistema(){
+  if(!S.avisosOn || !hayAvisos() || Notification.permission !== 'granted') return;
+  const h = hoy();
+  const pendientes = S.deudas
+    .filter(d => !d.archivada && !estadoDeuda(d).pagada)
+    .map(d => ({ d, p: proximoPago(d.diaPago) }))
+    .filter(x => x.p.dias <= DIAS_VENCE);
+  if(!pendientes.length) return;
+
+  navigator.serviceWorker.ready.then(reg => {
+    for(const { d, p } of pendientes){
+      const iso = p.fecha.getFullYear() + '-' + String(p.fecha.getMonth()+1).padStart(2,'0')
+        + '-' + String(p.fecha.getDate()).padStart(2,'0');
+      const clave = d.id + '|' + iso;
+      if(S.avisados[clave]) continue;                     // ya se avisó de este vencimiento
+      const cuando = p.dias === 0 ? 'vence hoy' : p.dias === 1 ? 'vence mañana' : 'vence en ' + p.dias + ' días';
+      reg.showNotification((d.icono || '🧾') + ' ' + d.nombre + ' ' + cuando, {
+        body: 'Te faltan ' + fmt(estadoDeuda(d).saldo) + '.',
+        icon: 'icon-192.png', badge: 'icon-192.png',
+        tag: 'vence-' + d.id, lang: 'es-CO'
+      }).then(() => { S.avisados[clave] = h; save(); }).catch(() => {});
+    }
+    // se limpian las marcas viejas para que el estado no crezca sin control
+    const vivas = {};
+    for(const k in S.avisados) if(diasEntre(S.avisados[k], h) < 60) vivas[k] = S.avisados[k];
+    S.avisados = vivas;
+  }).catch(() => {});
+}
+
 function ocultarAviso(){
   S.avisoOculto = hoy();
   render();
@@ -863,6 +1060,22 @@ function render(){
   renderDeudaEdit();
   renderCats();
   document.getElementById('setNombre').value = S.nombre || '';
+
+  const btnAv = document.getElementById('avisosBtn'), txtAv = document.getElementById('avisosTexto');
+  const permiso = hayAvisos() ? Notification.permission : 'no-soportado';
+  if(!hayAvisos()){
+    txtAv.textContent = 'Este navegador no permite avisos. Dentro de la app te seguiré avisando igual.';
+    btnAv.hidden = true;
+  } else if(permiso === 'denied'){
+    txtAv.textContent = 'Bloqueaste los avisos. Para volver a permitirlos: Ajustes de iOS → Jornal → Notificaciones.';
+    btnAv.hidden = true;
+  } else {
+    btnAv.hidden = false;
+    btnAv.textContent = S.avisosOn && permiso === 'granted' ? 'Desactivar avisos' : 'Activar avisos en el teléfono';
+    txtAv.textContent = S.avisosOn && permiso === 'granted'
+      ? 'Te avisaré cuando falten ' + DIAS_VENCE + ' días o menos para una deuda. El aviso sale al abrir la app y te queda guardado en el teléfono.'
+      : 'Recibe el vencimiento como aviso del teléfono, no solo dentro de la app. Requiere tener Jornal en la pantalla de inicio.';
+  }
   save();
 }
 
@@ -1062,6 +1275,52 @@ function foco(sel){
   }, 260);
 }
 
+/* Lee la frase de la caja y rellena monto, categoría y nota. Se llama en cada
+   tecla y cada vez que llega un trozo de dictado. Solo rellena: el guardado
+   lo sigue dando ella, así que entender mal no rompe nada. */
+function aplicarFrase(b, cats){
+  const caja = b.querySelector('#g_frase'), eco = b.querySelector('#g_eco');
+  if(!caja || !eco) return;
+  const campoMonto = b.querySelector('#g_monto');
+  const campoNota = b.querySelector('#g_nota');
+  const zonaCats = b.querySelector('#g_cats');
+  const crudo = caja.value.trim();
+  const r = crudo ? interpretarGasto(crudo, cats) : { monto:null, cat:null, nota:'' };
+
+  /* La frase manda sobre los campos que ella no haya tocado a mano. En cuanto
+     corrige uno, ese campo queda suyo y la frase no vuelve a pisarlo: si no,
+     el resultado final del dictado, que llega un segundo después del
+     provisional, le borraría la corrección sin que se entere.
+     Y lo que la frase sí gobierna, lo limpia cuando deja de decirlo: dictar
+     "veinte mil en almuerzo", borrar y escribir "pasajes" dejaba los $20.000
+     pegados y podía guardarlos sin darse cuenta. */
+  const marcar = (el, valor) => {
+    if(el.dataset.suya === '1') return;
+    el.value = (valor !== null && valor !== '') ? valor : '';
+  };
+  marcar(campoMonto, r.monto);
+  marcar(campoNota, r.nota);
+  if(zonaCats.dataset.suya !== '1'){
+    const elegida = r.cat || cats[0];
+    zonaCats.querySelectorAll('.pill').forEach(p => p.classList.toggle('on', p.dataset.c === elegida));
+  }
+
+  const partes = [];
+  if(r.monto !== null) partes.push('<b>' + fmt(r.monto) + '</b>');
+  if(r.cat) partes.push(esc(r.cat));
+  eco.innerHTML = !crudo ? ''
+    : partes.length ? 'Entendí: ' + partes.join(' · ') + (r.monto === null ? '. Falta la cifra.' : '')
+    : 'No le encontré una cifra. Puedes escribirla abajo.';
+}
+
+/* Ella dicta con el MICRÓFONO DEL TECLADO de iOS, que escribe en esta misma
+   caja. No se usa la Web Speech API a propósito: manda el audio a servidores
+   de Apple cuando no hay modelo en el dispositivo, y eso rompe dos reglas
+   duras del proyecto (funcionar offline y cero llamadas de red). Además
+   WebKit la deja fuera de las apps instaladas en pantalla de inicio, donde
+   falla en silencio. El teclado es nativo, siempre funciona y no pasa de aquí. */
+const PISTA_TECLADO = 'Dilo con el micrófono del teclado, junto a la barra espaciadora, o escríbelo.';
+
 function editMov(id){
   const m = S.movs.find(x => x.id === id);
   if(m) openSheet(m.tipo === 'abono' ? 'abono' : m.tipo, id);
@@ -1118,7 +1377,15 @@ function openSheet(tipo, id, deudaId){
     const cats = (m && m.cat && !S.cats.includes(m.cat)) ? [m.cat].concat(S.cats) : S.cats;
     const sel = m ? (m.cat || '') : (S.cats[0] || '');
     t.textContent = m ? 'Editar gasto' : 'Registrar gasto';
+    // la caja de dictar solo aparece al crear: al corregir ya sabe qué campo tocar
     b.innerHTML = `
+      ${m ? '' : `<div class="dictado">
+        <label for="g_frase">Dilo o escríbelo</label>
+        <div class="dictado-fila">
+          <input id="g_frase" type="text" placeholder="gasté veinte mil en almuerzo" autocapitalize="sentences" autocomplete="off">
+        </div>
+        <p class="dictado-eco" id="g_eco">${PISTA_TECLADO}</p>
+      </div>`}
       <div class="field"><label for="g_monto">Cuánto gastaste</label>
         <input id="g_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
       <div class="field"><label>Categoría</label>
@@ -1131,8 +1398,20 @@ function openSheet(tipo, id, deudaId){
     b.querySelectorAll('#g_cats .pill').forEach(p => p.onclick = () => {
       b.querySelectorAll('#g_cats .pill').forEach(x=>x.classList.remove('on'));
       p.classList.add('on');
+      b.querySelector('#g_cats').dataset.suya = '1';   // elección suya: la frase ya no manda
     });
-    if(!m) foco('#g_monto');
+    if(!m){
+      const caja = b.querySelector('#g_frase');
+      caja.addEventListener('input', () => aplicarFrase(b, cats));
+      // si corrige un campo a mano queda suyo; si lo vacía, se lo devuelve a la frase
+      ['#g_monto','#g_nota'].forEach(sel => {
+        const el = b.querySelector(sel);
+        el.addEventListener('input', () => {
+          if(el.value.trim()) el.dataset.suya = '1'; else delete el.dataset.suya;
+        });
+      });
+      foco('#g_frase');
+    }
   }
 
   if(tipo === 'abono'){
@@ -1422,7 +1701,7 @@ function importData(ev){
       if(!d || !Array.isArray(d.movs)) throw new Error('formato');
       // una copia vieja se migra igual: v1 no trae deudas, v2 no trae reservas
       S = !Array.isArray(d.deudas) ? migrarV1(d)
-        : d.movs.some(m => m.tipo === 'reserva') ? Object.assign({}, DEFAULTS, d)
+        : d.movs.some(m => m.tipo === 'reserva') ? conDefaults(d)
         : migrarV2(d);
       S.ultimoRespaldo = hoy();   // si restauró, tiene el archivo a la mano
       S.avisoOculto = null;
@@ -1434,12 +1713,13 @@ function importData(ev){
 function wipe(){
   if(!confirm('Esto borra todas las deudas, ingresos, gastos y abonos. ¿Seguro?')) return;
   if(!confirm('Última confirmación: no se puede deshacer.')) return;
-  S = JSON.parse(JSON.stringify(DEFAULTS));
+  S = conDefaults();
   render(); toast('Datos borrados');
 }
 
 /* ---- arranque ---- */
 render();
+revisarAvisosSistema();   // si hay algo por vencer, el teléfono se lo dice al abrir
 
 /* La pantalla de arranque se quita sola. Si es la primera vez, al terminar
    pregunta el nombre. `quitarSplash` es idempotente: da igual si la tocan

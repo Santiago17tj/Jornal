@@ -77,7 +77,8 @@ quitarlo en Ajustes.
 
 ## Avisos
 
-Aparecen en Inicio, hasta tres a la vez:
+Aparecen en Inicio, hasta tres a la vez (y los de vencimiento también pueden salir como aviso
+del teléfono, ver arriba):
 
 - **Vencimiento cerca**: cinco días antes de la fecha de una deuda sin pagar, con el botón
   para abonar de una.
@@ -92,6 +93,47 @@ posibles sin un servidor, y esta app no tiene ninguno a propósito.
 
 La app se actualiza sola: al abrirla con internet detecta la versión nueva y se recarga.
 No hay que borrar cachés ni reinstalar el ícono.
+
+## Registrar un gasto hablando
+
+En **Registrar gasto**, arriba hay una caja donde puedes **decirlo o escribirlo** de corrido:
+
+> *gasté veinte mil en almuerzo*
+
+La app entiende la cifra y la categoría, y llena los campos sola. Te muestra lo que entendió
+("Entendí: $20.000 · Comida") para que lo revises antes de guardar. **Nunca guarda sola**, así
+que si entiende mal no pasa nada: corriges y listo.
+
+**Para decirlo en voz alta:** toca la caja y usa el **micrófono del teclado del iPhone**, el
+que está junto a la barra espaciadora. Habla normal y la app hace el resto.
+
+Entiende cosas como:
+
+| Lo que dices | Lo que entiende |
+|---|---|
+| gasté veinte mil en almuerzo | $20.000 · Comida |
+| pasajes cinco mil | $5.000 · Transporte |
+| treinta y cinco mil mercado | $35.000 · Casa |
+| compré un cuaderno de ocho mil | $8.000 · Universidad |
+| veinte lucas en comida | $20.000 · Comida |
+| medio millón de arriendo | $500.000 · Casa |
+
+Si corriges un campo a mano, la frase ya no te lo vuelve a cambiar.
+
+## Avisos en el teléfono
+
+En **Ajustes → Avisos de vencimiento** puedes activar que el iPhone te avise cuando falten
+cinco días o menos para una deuda. El aviso te queda guardado en el centro de notificaciones.
+
+Dos cosas importantes y honestas:
+
+- **Solo funciona con Jornal instalada en la pantalla de inicio.** Desde una pestaña de
+  Safari, iOS no deja ni pedir el permiso.
+- **El aviso sale cuando abres la app**, no con la app cerrada. Para eso haría falta un
+  servidor, y esta app no tiene ninguno a propósito. Dentro de la app te sigue avisando igual.
+
+Si le dices que no al permiso, iOS no deja volver a preguntarte: se cambia en Ajustes de iOS
+→ Jornal → Notificaciones.
 
 ## Movimientos
 
