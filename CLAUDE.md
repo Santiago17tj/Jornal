@@ -200,11 +200,13 @@ aparte, del día que ella paga.
 **Las dos conservan `libre` exacto y no mueven ningún saldo.** Está verificado con datos
 reales de cada versión; si tocas una migración, vuelve a comprobarlo.
 
-`conDefaults(base)` es la única forma correcta de crear un estado: `cats` y `avisados` son
-mutables, y un `Object.assign({}, DEFAULTS, ...)` pelado deja el estado compartiendo la MISMA
-referencia que `DEFAULTS`. La primera notificación guardada ensuciaba así los valores por
-defecto de toda la sesión y se los pasaba al siguiente estado. Úsalo en `load()`, en las
-migraciones, en `importData()` y en `wipe()`.
+`conDefaults(base)` es la única forma correcta de crear un estado, y **clona DEFAULTS en
+profundidad** (de ahí el rodeo del JSON). `cats`, `deudas`, `movs` y `avisados` son mutables:
+con un `Object.assign({}, DEFAULTS, ...)` pelado el estado comparte la MISMA referencia que
+`DEFAULTS`, así que en una instalación nueva la primera deuda que ella creara quedaba pegada a
+`DEFAULTS` y **"Borrar todos los datos" se la devolvía intacta**, después de dos
+confirmaciones. Clonar el objeto entero, en vez de ir listando campos, evita que un campo
+nuevo repita el fallo. Úsalo en `load()`, en las migraciones, en `importData()` y en `wipe()`.
 
 Si cambias la forma de los datos, **incrementa la clave** y escribe la migración. Nunca dejes
 que alguien con datos viejos abra la app y vea todo en cero. Agregar un campo *opcional* que
@@ -246,6 +248,8 @@ Funciones principales:
 - `aplicarFrase(b, cats)` — rellena la hoja desde la frase respetando lo que ella tocó
 - `activarAvisos()` / `desactivarAvisos()` / `revisarAvisosSistema()` — avisos del sistema;
   `hayAvisos()` y `estaInstalada()` son las comprobaciones previas
+- `conDefaults(base)` — estado nuevo clonando DEFAULTS en profundidad
+- `avisosActivos()` — único predicado de "los avisos están puestos", para etiqueta y acción
 - `fmt()` `uid()` `hoy()` `fechaCorta()` `esc()` `toast()` — utilidades
 
 ### Dictar o escribir un gasto
@@ -259,6 +263,10 @@ sin librerías, sin servicios.
 entendió. Por eso una interpretación errada es inofensiva; no hace falta que el parser sea
 perfecto, hace falta que sea transparente.
 
+`extraerMonto()` junta **todos** los grupos de cifra de la frase y se queda con el mejor, no
+con el primero: gana el que lleve multiplicador (mil, millón, luca) y, entre iguales, el
+mayor. Antes cortaba en la primera palabra ajena y *"tres pasajes de tres mil"* daba **$3**.
+
 Reglas del parser que costaron pruebas y no hay que deshacer:
 
 - `"20.000"` es separador de miles y `"20,5"` es decimal. La diferencia es **cuántos dígitos
@@ -266,7 +274,12 @@ Reglas del parser que costaron pruebas y no hay que deshacer:
 - **`"un"` es artículo, no la cifra 1**, salvo que le siga un multiplicador. Sin esto
   *"compré un cuaderno de ocho mil"* daba $1.
 - El punto final que mete el dictado se elimina; si no, `"almuerzo."` no casa con la categoría.
-- Jerga local: `luca` y `barra` son mil, `palo` es millón.
+- Jerga local: `luca` y `barra` son mil, `palo` es millón. Ojo que `barra` y `palo` también
+  son sustantivos ("una barra de chocolate"): por eso gana el grupo mayor y no el primero.
+- Las pistas de categoría casan **también en plural** (`dice()`), o *"dos almuerzos"* se
+  quedaba sin categoría.
+- `numPalabra()` y `pistasDe()` leen con `hasOwnProperty`: sin eso, una categoría llamada
+  `constructor` reventaba y la palabra `toString` se colaba como cifra.
 
 **Quién manda sobre cada campo.** La frase gobierna los campos que ella no haya tocado; en
 cuanto corrige uno a mano queda suyo (`dataset.suya`) y la frase no vuelve a pisarlo. Esto no
@@ -309,6 +322,15 @@ Lo que **no** se puede sin servidor: programar un aviso para cuando la app esté
 hay Notification Triggers (murió), ni Background Sync, ni Periodic Sync en iOS. Lo único que
 despierta una PWA instalada es un push, y eso exige backend.
 
+`revisarAvisosSistema()` corre al arrancar **y cada vez que la app vuelve a primer plano**
+(`visibilitychange` y `pageshow`): iOS reanuda la PWA desde el selector sin volver a ejecutar
+el script, y mirar solo al arrancar dejaba pasar la ventana entera del vencimiento, que
+después `proximoPago()` ya no vuelve a generar. Ese `render()` de paso recalcula lo que
+depende de `hoy()`, que con la página restaurada se queda congelado en el día anterior.
+
+Al arrancar se reconcilia `S.avisosOn` con el permiso real: un respaldo importado puede traer
+`avisosOn: true` a un teléfono donde el permiso no está dado.
+
 Así que el trato es: `revisarAvisosSistema()` corre **al abrir la app** y lanza una
 notificación real por cada deuda que venza dentro de `DIAS_VENCE`. Queda en el centro de
 notificaciones del iPhone, así que la ve después aunque cierre. `S.avisados` evita repetirla
@@ -332,6 +354,12 @@ cierra al tocarla y **no aparece** con `prefers-reduced-motion`. Al terminar, si
 ni datos, abre la hoja `bienvenida` que pregunta cómo se llama. Si alargas la animación,
 recuerda que ella abre la app varias veces al día: lo que la primera vez encanta, a la décima
 estorba.
+
+**`closeSheet()` vacía el cuerpo de la hoja.** Si no, los campos de la hoja cerrada siguen
+vivos en el DOM y un `getElementById` los encuentra antes que los de la pantalla: por eso
+guardar el nombre en Ajustes leía el `#n_nombre` vacío de la hoja de bienvenida y lo borraba.
+Por lo mismo, `guardarNombre(id)` recibe de qué campo leer en vez de adivinarlo. Todas las
+funciones `addX()` leen sus campos **antes** de llamar a `closeSheet()`; mantén ese orden.
 
 `foco()` comprueba que el campo siga en el DOM antes de enfocarlo: si la hoja se cierra antes
 de los 260 ms de la animación, el cuerpo ya fue reemplazado. No vuelvas al `setTimeout` pelado.
@@ -472,6 +500,13 @@ Validaciones mínimas antes de dar algo por terminado:
   llega el resultado final del dictado: su monto debe sobrevivir.
 - **La frase limpia lo suyo.** Escribe una frase con cifra, bórrala y escribe otra sin cifra:
   el monto no puede quedarse pegado.
+- **"Borrar todos los datos" borra de verdad en una instalación nueva.** Crea la primera
+  deuda sin que hubiera nada guardado y bórralo todo: `deudas` y `movs` deben quedar en cero.
+  Con `DEFAULTS` compartido por referencia, no borraba nada.
+- **El nombre escrito en Ajustes se guarda** después de haber abierto y cerrado la hoja de
+  bienvenida. Era el caso que lo perdía.
+- **El botón de avisos no miente**: con `avisosOn: true` y el permiso en `default`, debe decir
+  "Activar" y al tocarlo pedir el permiso, no desactivarlos.
 - Avisos: con el permiso simulado en `granted`, abrir la app debe lanzar una notificación solo
   por la deuda que vence dentro de `DIAS_VENCE`, no repetirla al reabrir, y no lanzar nada por
   las pagadas ni las archivadas. Con el permiso en `denied` no puede reventar nada.

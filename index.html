@@ -436,7 +436,7 @@ nav button.on{color:var(--ink)}
         <label for="setNombre">Así te saluda la app</label>
         <input id="setNombre" type="text" placeholder="Tu nombre" maxlength="24">
       </div>
-      <button class="btn ghost wide" onclick="guardarNombre()">Guardar</button>
+      <button class="btn ghost wide" onclick="guardarNombre('setNombre')">Guardar</button>
     </div>
 
     <div class="card" style="margin-top:12px">
@@ -449,7 +449,7 @@ nav button.on{color:var(--ink)}
     <div class="card" style="margin-top:12px">
       <h3>Avisos de vencimiento</h3>
       <p class="hint" style="margin-top:0" id="avisosTexto"></p>
-      <button class="btn ghost wide" id="avisosBtn" onclick="S.avisosOn ? desactivarAvisos() : activarAvisos()"></button>
+      <button class="btn ghost wide" id="avisosBtn" onclick="avisosActivos() ? desactivarAvisos() : activarAvisos()"></button>
     </div>
 
     <div class="card" style="margin-top:12px">
@@ -613,23 +613,63 @@ function esArticulo(tok, sig){
   return !(MIL_PAL.includes(sig) || MILLON_PAL.includes(sig)
     || NUM_PALABRA[sig] !== undefined || tokANumero(sig) !== null);
 }
+/* Lectura segura: `NUM_PALABRA['constructor']` devolvía la función heredada de
+   Object.prototype, así que una palabra así se colaba como cifra y daba NaN. */
+function numPalabra(tok){
+  return Object.prototype.hasOwnProperty.call(NUM_PALABRA, tok) ? NUM_PALABRA[tok] : null;
+}
+function pistasDe(cat){
+  return Object.prototype.hasOwnProperty.call(PISTAS_CAT, cat) ? PISTAS_CAT[cat] : [];
+}
+
 function extraerMonto(tokens){
-  let cur = 0, total = 0, visto = false, hubo = false;
+  /* Junta TODOS los grupos de cifra de la frase y se queda con el mejor, no
+     con el primero. Antes cortaba en la primera palabra ajena y "tres pasajes
+     de tres mil" daba $3 en vez de $3.000. Gana el grupo que lleve
+     multiplicador (mil, millón, luca) y, entre iguales, el mayor: en Colombia
+     el precio casi siempre lo lleva. */
+  const grupos = [];
+  let cur = 0, total = 0, conMult = false, abierto = false, ultimoMult = 0;
+  const cerrar = () => {
+    total += cur;
+    if(abierto && total >= 1) grupos.push({ valor: Math.round(total), conMult });
+    cur = 0; total = 0; conMult = false; abierto = false; ultimoMult = 0;
+  };
   for(let i = 0; i < tokens.length; i++){
     const tok = tokens[i];
     if(esArticulo(tok, tokens[i+1])) continue;
+
     const n = tokANumero(tok);
-    if(n !== null){ cur += n; visto = hubo = true; continue; }
-    if(NUM_PALABRA[tok] !== undefined){ cur += NUM_PALABRA[tok]; visto = hubo = true; continue; }
-    if(tok === 'medio' || tok === 'media'){ cur += 0.5; visto = true; continue; }
-    if(MIL_PAL.includes(tok)){ cur = (cur||1)*1000; total += cur; cur = 0; visto = hubo = true; continue; }
-    if(MILLON_PAL.includes(tok)){ cur = (cur||1)*1000000; total += cur; cur = 0; visto = hubo = true; continue; }
+    if(n !== null){ cur += n; abierto = true; continue; }
+    const np = numPalabra(tok);
+    if(np !== null){ cur += np; abierto = true; continue; }
+
+    if(tok === 'medio' || tok === 'media'){
+      // "dos millones y medio" es la mitad del multiplicador ya aplicado;
+      // "medio millón" es medio por el multiplicador que viene
+      if(cur === 0 && total > 0 && ultimoMult > 0) total += ultimoMult / 2;
+      else cur += 0.5;
+      continue;
+    }
+
+    const mult = MIL_PAL.includes(tok) ? 1000 : (MILLON_PAL.includes(tok) ? 1000000 : 0);
+    if(mult){
+      // un multiplicador mayor detrás de otro lo absorbe: "mil millones"
+      if(cur === 0 && total > 0 && mult > ultimoMult) total *= mult;
+      else { cur = (cur || 1) * mult; total += cur; cur = 0; }
+      ultimoMult = mult; conMult = true; abierto = true;
+      continue;
+    }
+
     if(PEGA_PAL.includes(tok)) continue;
-    if(visto) break;    // palabra ajena después de la cifra: la cifra terminó
+    cerrar();                      // palabra ajena: aquí se acaba este grupo
   }
-  total += cur;
-  return (hubo && total > 0) ? Math.round(total) : null;
+  cerrar();
+  if(!grupos.length) return null;
+  grupos.sort((a,b) => (b.conMult - a.conMult) || (b.valor - a.valor));
+  return grupos[0].valor;
 }
+
 /* Palabras que delatan la categoría. Solo se proponen categorías que ella
    tenga creadas; si inventó otras, se busca su nombre dentro de la frase. */
 const PISTAS_CAT = {
@@ -640,13 +680,17 @@ const PISTAS_CAT = {
 };
 function detectarCat(texto, cats){
   const t = ' ' + texto + ' ';
+  const toks = texto.split(' ');
+  // la palabra cuenta también en plural: "dos almuerzos" tiene que pesar
+  // igual que "almuerzo", si no la categoría se queda sin detectar
+  const dice = raiz => toks.some(w => w === raiz || w === raiz + 's' || w === raiz + 'es');
   let mejor = null, puntaje = 0;
   for(const cat of cats){
     const nc = normFrase(cat);
     let p = 0;
-    if(nc && t.includes(' ' + nc + ' ')) p += 10;        // dijo el nombre tal cual
-    else if(nc.length > 3 && t.includes(nc)) p += 6;     // lo dijo pegado o en plural
-    for(const k of (PISTAS_CAT[cat] || [])) if(t.includes(' ' + k + ' ')) p += 4;
+    if(nc && (dice(nc) || t.includes(' ' + nc + ' '))) p += 10;   // dijo el nombre tal cual
+    else if(nc.length > 3 && t.includes(nc)) p += 6;              // lo dijo pegado
+    for(const k of pistasDe(cat)) if(dice(k)) p += 4;
     if(p > puntaje){ puntaje = p; mejor = cat; }
   }
   return puntaje > 0 ? mejor : null;
@@ -654,7 +698,7 @@ function detectarCat(texto, cats){
 const RELLENO_PAL = ['gaste','me','en','compre','pague','el','la','los','las','para','por','hoy','ayer','mi','al'];
 function sacarNota(tokens){
   const fuera = new Set(RELLENO_PAL.concat(MIL_PAL, MILLON_PAL, PEGA_PAL, ['medio','media','un','uno','una']));
-  const pal = tokens.filter(t => tokANumero(t) === null && NUM_PALABRA[t] === undefined && !fuera.has(t));
+  const pal = tokens.filter(t => tokANumero(t) === null && numPalabra(t) === null && !fuera.has(t));
   if(!pal.length) return '';
   const n = pal.join(' ');
   return n.charAt(0).toUpperCase() + n.slice(1);
@@ -666,13 +710,15 @@ function interpretarGasto(texto, cats){
   return { monto: extraerMonto(tokens), cat: detectarCat(t, cats), nota: sacarNota(tokens) };
 }
 
-/* Copia fresca de los valores por defecto. `cats` y `avisados` son mutables:
-   con `Object.assign({}, DEFAULTS, ...)` el estado se quedaba con la MISMA
-   referencia que DEFAULTS, así que la primera notificación guardada ensuciaba
-   los valores por defecto de toda la sesión y se los pasaba al siguiente
-   estado (por ejemplo al importar una copia vieja). */
+/* Copia PROFUNDA de los valores por defecto, y por eso el rodeo del JSON.
+   `cats`, `deudas`, `movs` y `avisados` son mutables: con un
+   `Object.assign({}, DEFAULTS, ...)` el estado se quedaba con la MISMA
+   referencia que DEFAULTS, así que en una instalación nueva la primera deuda
+   que creara quedaba pegada a DEFAULTS y "Borrar todos los datos" se la
+   devolvía intacta, después de dos confirmaciones. Clonar el objeto entero,
+   en vez de ir listando campos, evita que un campo nuevo repita el fallo. */
 function conDefaults(base){
-  return Object.assign({}, DEFAULTS, { cats: DEFAULTS.cats.slice(), avisados: {} }, base || {});
+  return Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), base || {});
 }
 
 /* ---- migración v1 → v2 ------------------------------------------------
@@ -929,6 +975,13 @@ const hayAvisos = () => typeof Notification !== 'undefined' && 'serviceWorker' i
 const estaInstalada = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
   || navigator.standalone === true;
 
+/* Un solo predicado para la etiqueta y para la acción del botón. Con dos
+   condiciones distintas el botón mentía: tras importar un respaldo con
+   avisosOn:true en un teléfono donde el permiso no está concedido (por
+   ejemplo al reinstalar la app, que en iOS resetea el permiso), decía
+   "Activar avisos" y al tocarlo los desactivaba. */
+const avisosActivos = () => !!S.avisosOn && hayAvisos() && Notification.permission === 'granted';
+
 function activarAvisos(){
   if(!hayAvisos()){ toast('Tu teléfono no permite avisos desde la app.'); return; }
   if(!estaInstalada() && /iPhone|iPad|iPod/.test(navigator.userAgent)){
@@ -1071,8 +1124,8 @@ function render(){
     btnAv.hidden = true;
   } else {
     btnAv.hidden = false;
-    btnAv.textContent = S.avisosOn && permiso === 'granted' ? 'Desactivar avisos' : 'Activar avisos en el teléfono';
-    txtAv.textContent = S.avisosOn && permiso === 'granted'
+    btnAv.textContent = avisosActivos() ? 'Desactivar avisos' : 'Activar avisos en el teléfono';
+    txtAv.textContent = avisosActivos()
       ? 'Te avisaré cuando falten ' + DIAS_VENCE + ' días o menos para una deuda. El aviso sale al abrir la app y te queda guardado en el teléfono.'
       : 'Recibe el vencimiento como aviso del teléfono, no solo dentro de la app. Requiere tener Jornal en la pantalla de inicio.';
   }
@@ -1481,7 +1534,7 @@ function openSheet(tipo, id, deudaId){
       <p class="hint" style="margin-top:0">Jornal lleva la cuenta de lo que debes y de lo que te va quedando, para que no tengas que restar a mano.</p>
       <div class="field"><label for="n_nombre">¿Cómo te llamas?</label>
         <input id="n_nombre" type="text" placeholder="Tu nombre" autocomplete="given-name" maxlength="24"></div>
-      <button class="btn acc wide" onclick="guardarNombre()">Empezar</button>
+      <button class="btn acc wide" onclick="guardarNombre('n_nombre')">Empezar</button>
       <button class="btn ghost wide" style="margin-top:10px" onclick="closeSheet()">Ahora no</button>`;
     foco('#n_nombre');
   }
@@ -1524,6 +1577,12 @@ function openSheet(tipo, id, deudaId){
 function closeSheet(){
   document.getElementById('sheet').classList.remove('on');
   editando = null;
+  /* Se vacía el cuerpo. Si no, los campos de la hoja cerrada siguen vivos en
+     el DOM y un getElementById los encuentra antes que los de la pantalla:
+     por eso guardar el nombre en Ajustes leía el #n_nombre vacío de la hoja
+     de bienvenida y lo borraba. La hoja se oculta de golpe (display:none),
+     así que vaciarla no se ve. */
+  document.getElementById('sheetBody').innerHTML = '';
 }
 
 /* ---- acciones ---- */
@@ -1663,8 +1722,10 @@ function delMov(id){
   render(); toast('Movimiento eliminado');
 }
 
-function guardarNombre(){
-  const v = (document.getElementById('n_nombre') || document.getElementById('setNombre')).value.trim();
+function guardarNombre(id){
+  const el = document.getElementById(id);
+  if(!el) return;                       // explícito: nunca adivinar de qué campo leer
+  const v = el.value.trim();
   S.nombre = v.slice(0, 24);
   closeSheet(); render();
   toast(v ? '¡Mucho gusto, ' + v + '!' : 'Listo');
@@ -1718,8 +1779,26 @@ function wipe(){
 }
 
 /* ---- arranque ---- */
+/* Un respaldo importado puede traer avisosOn:true a un teléfono donde el
+   permiso no está dado; se reconcilia antes del primer pintado. */
+if(S.avisosOn && hayAvisos() && Notification.permission !== 'granted') S.avisosOn = false;
+
 render();
 revisarAvisosSistema();   // si hay algo por vencer, el teléfono se lo dice al abrir
+
+/* iOS reanuda la app desde el selector sin volver a ejecutar el script, así
+   que mirar solo al arrancar dejaba pasar el vencimiento entero: la ventana se
+   cerraba y proximoPago() ya apuntaba al mes siguiente, sin aviso nunca.
+   Se vuelve a mirar cada vez que pasa a primer plano. render() de paso
+   recalcula lo que depende de hoy(), que con la página restaurada se queda
+   congelado en el día anterior. S.avisados evita que se repita. */
+function alVolverAlFrente(){
+  if(document.hidden) return;
+  render();
+  revisarAvisosSistema();
+}
+document.addEventListener('visibilitychange', alVolverAlFrente);
+window.addEventListener('pageshow', e => { if(e.persisted) alVolverAlFrente(); });
 
 /* La pantalla de arranque se quita sola. Si es la primera vez, al terminar
    pregunta el nombre. `quitarSplash` es idempotente: da igual si la tocan
