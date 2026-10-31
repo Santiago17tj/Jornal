@@ -434,7 +434,8 @@ nav button.on{color:var(--ink)}
       <h3>Tu nombre</h3>
       <div class="field" style="margin-bottom:12px">
         <label for="setNombre">Así te saluda la app</label>
-        <input id="setNombre" type="text" placeholder="Tu nombre" maxlength="24">
+        <input id="setNombre" type="text" placeholder="Tu nombre" maxlength="24"
+               oninput="this.dataset.suya='1'">
       </div>
       <button class="btn ghost wide" onclick="guardarNombre('setNombre')">Guardar</button>
     </div>
@@ -703,11 +704,45 @@ function sacarNota(tokens){
   const n = pal.join(' ');
   return n.charAt(0).toUpperCase() + n.slice(1);
 }
+/* Lee un campo de plata entendiendo cómo escribe ella: "20.000" son veinte mil,
+   no veinte. Los campos NO pueden ser type="number": ahí el punto es el
+   separador DECIMAL, así que "20.000" se guardaba como $20 sin avisar, y la
+   misma hoja se contradecía porque la caja de dictar sí lo leía bien.
+   Van como type="text" con inputmode="decimal", que en el iPhone sigue
+   abriendo el teclado numérico. */
+function leerMonto(id){
+  const el = typeof id === 'string' ? document.getElementById(id) : id;
+  if(!el) return 0;
+  const n = tokANumero(String(el.value).trim().replace(/\s|\$/g, ''));
+  return n === null ? 0 : Math.round(n);
+}
+
+/* Fecha local desplazada N días, para "ayer" y "anteayer". */
+function fechaDesplazada(dias){
+  const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + dias);
+  const z = n => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + z(d.getMonth()+1) + '-' + z(d.getDate());
+}
+/* "ayer gasté veinte mil" tiene que mover la fecha. Antes la palabra se
+   borraba de la nota, el campo seguía en hoy y el eco no lo mencionaba: el
+   gasto de ayer quedaba fechado hoy, y el último día del mes se iba al mes
+   equivocado sin dejar rastro. */
+function detectarDia(tokens){
+  if(tokens.includes('anteayer')) return { dias:-2, texto:'anteayer' };
+  if(tokens.includes('ayer')) return { dias:-1, texto:'ayer' };
+  if(tokens.includes('hoy')) return { dias:0, texto:'hoy' };
+  return null;
+}
 function interpretarGasto(texto, cats){
   const t = normFrase(texto);
-  if(!t) return { monto:null, cat:null, nota:'' };
+  if(!t) return { monto:null, cat:null, nota:'', dia:null };
   const tokens = t.split(' ');
-  return { monto: extraerMonto(tokens), cat: detectarCat(t, cats), nota: sacarNota(tokens) };
+  const cat = detectarCat(t, cats);
+  let nota = sacarNota(tokens);
+  // si la nota acabó siendo el nombre de la categoría, sobra: la fila de
+  // Movimientos la mostraría dos veces
+  if(nota && cat && normFrase(nota) === normFrase(cat)) nota = '';
+  return { monto: extraerMonto(tokens), cat, nota, dia: detectarDia(tokens) };
 }
 
 /* Copia PROFUNDA de los valores por defecto, y por eso el rodeo del JSON.
@@ -1112,7 +1147,11 @@ function render(){
   renderMovs();
   renderDeudaEdit();
   renderCats();
-  document.getElementById('setNombre').value = S.nombre || '';
+  /* No se pisa si lo está escribiendo: render() corre al agregar una
+     categoría o al volver de otra app, y le devolvía el nombre viejo al campo
+     justo antes de que tocara Guardar. */
+  const campoNombre = document.getElementById('setNombre');
+  if(campoNombre.dataset.suya !== '1') campoNombre.value = S.nombre || '';
 
   const btnAv = document.getElementById('avisosBtn'), txtAv = document.getElementById('avisosTexto');
   const permiso = hayAvisos() ? Notification.permission : 'no-soportado';
@@ -1337,8 +1376,14 @@ function aplicarFrase(b, cats){
   const campoMonto = b.querySelector('#g_monto');
   const campoNota = b.querySelector('#g_nota');
   const zonaCats = b.querySelector('#g_cats');
+  const campoFecha = b.querySelector('#g_fecha');
   const crudo = caja.value.trim();
-  const r = crudo ? interpretarGasto(crudo, cats) : { monto:null, cat:null, nota:'' };
+  const r = crudo ? interpretarGasto(crudo, cats) : { monto:null, cat:null, nota:'', dia:null };
+  let diaTexto = '';
+  if(campoFecha && campoFecha.dataset.suya !== '1'){
+    campoFecha.value = r.dia ? fechaDesplazada(r.dia.dias) : hoy();
+    if(r.dia && r.dia.dias !== 0) diaTexto = r.dia.texto;
+  }
 
   /* La frase manda sobre los campos que ella no haya tocado a mano. En cuanto
      corrige uno, ese campo queda suyo y la frase no vuelve a pisarlo: si no,
@@ -1358,11 +1403,19 @@ function aplicarFrase(b, cats){
     zonaCats.querySelectorAll('.pill').forEach(p => p.classList.toggle('on', p.dataset.c === elegida));
   }
 
+  /* El eco describe lo que quedó EN LOS CAMPOS, no lo que entendió el
+     intérprete. Si ella ya había elegido otra categoría a mano, el eco
+     anunciaba la detectada y se guardaba la suya: el aviso mentía justo en lo
+     único que lo hace seguro. */
+  const montoPuesto = leerMonto(campoMonto);
+  const pillPuesta = zonaCats.querySelector('.pill.on');
+  const catPuesta = pillPuesta ? pillPuesta.dataset.c : null;
   const partes = [];
-  if(r.monto !== null) partes.push('<b>' + fmt(r.monto) + '</b>');
-  if(r.cat) partes.push(esc(r.cat));
+  if(montoPuesto > 0) partes.push('<b>' + fmt(montoPuesto) + '</b>');
+  if(catPuesta) partes.push(esc(catPuesta));
+  if(diaTexto) partes.push(esc(diaTexto));
   eco.innerHTML = !crudo ? ''
-    : partes.length ? 'Entendí: ' + partes.join(' · ') + (r.monto === null ? '. Falta la cifra.' : '')
+    : partes.length ? 'Entendí: ' + partes.join(' · ') + (montoPuesto > 0 ? '' : '. Falta la cifra.')
     : 'No le encontré una cifra. Puedes escribirla abajo.';
 }
 
@@ -1391,7 +1444,7 @@ function openSheet(tipo, id, deudaId){
     t.textContent = m ? 'Editar ingreso' : 'Registrar ingreso';
     b.innerHTML = `
       <div class="field"><label for="f_monto">Cuánto recibiste</label>
-        <input id="f_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
+        <input id="f_monto" class="money" type="text" inputmode="decimal" placeholder="0" autocomplete="off" value="${m ? m.monto : ''}"></div>
       ${(S.deudas.filter(d => !d.archivada || previos.some(x => x.deudaId === d.id)).length) ? `<label>Guarda para tus deudas</label>
       <div id="f_reps">${S.deudas.filter(d => !d.archivada || previos.some(x => x.deudaId === d.id)).map(d => {
         const e = estadoDeuda(d);
@@ -1399,7 +1452,7 @@ function openSheet(tipo, id, deudaId){
           + '<span class="rep-ico">' + esc(d.icono||'🧾') + '</span>'
           + '<span class="rep-id"><span class="rep-n">' + esc(d.nombre) + '</span>'
           +   '<span class="rep-s">' + (e.pagada ? 'ya está pagada' : 'faltan ' + fmt(e.saldo)) + '</span></span>'
-          + '<input type="number" inputmode="decimal" min="0" placeholder="0" data-d="' + d.id + '" value="' + montoDe(d.id) + '">'
+          + '<input type="text" inputmode="decimal" placeholder="0" autocomplete="off" data-d="' + esc(d.id) + '" value="' + montoDe(d.id) + '">'
           + '</div>';
       }).join('')}</div>
       <p class="hint" style="margin-top:10px">Esta plata se aparta y no cuenta como disponible. Cuando llegue la fecha de pago, la abonas desde la tarjeta de la deuda.</p>` : '<p class="hint">No tienes deudas activas. Agrégalas en Ajustes y podrás apartar de cada ingreso desde aquí.</p>'}
@@ -1410,8 +1463,8 @@ function openSheet(tipo, id, deudaId){
         <input id="f_nota" type="text" placeholder="Turno del sábado, arreglo de equipo…" value="${m ? esc(m.nota) : ''}"></div>
       <button class="btn acc wide" onclick="addJornada()">${m ? 'Guardar cambios' : 'Guardar ingreso'}</button>`;
     const upd = () => {
-      const mo = Number(document.getElementById('f_monto').value) || 0;
-      const rep = [...b.querySelectorAll('#f_reps input')].reduce((s,i)=> s + (Number(i.value)||0), 0);
+      const mo = leerMonto('f_monto');
+      const rep = [...b.querySelectorAll('#f_reps input')].reduce((s,i)=> s + leerMonto(i), 0);
       const libre = mo - rep;
       document.getElementById('f_prev').textContent = !mo
         ? 'Escribe cuánto recibiste y cuánto apartas para cada deuda.'
@@ -1440,7 +1493,7 @@ function openSheet(tipo, id, deudaId){
         <p class="dictado-eco" id="g_eco">${PISTA_TECLADO}</p>
       </div>`}
       <div class="field"><label for="g_monto">Cuánto gastaste</label>
-        <input id="g_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : ''}"></div>
+        <input id="g_monto" class="money" type="text" inputmode="decimal" placeholder="0" autocomplete="off" value="${m ? m.monto : ''}"></div>
       <div class="field"><label>Categoría</label>
         <div class="pills" id="g_cats">${cats.map(c=>'<button class="pill'+(c===sel?' on':'')+'" data-c="'+esc(c)+'">'+esc(c)+'</button>').join('')}</div></div>
       <div class="field" style="margin-top:16px"><label for="g_fecha">Fecha</label>
@@ -1449,15 +1502,18 @@ function openSheet(tipo, id, deudaId){
         <input id="g_nota" type="text" placeholder="Pasajes, almuerzo…" value="${m ? esc(m.nota) : ''}"></div>
       <button class="btn wide" onclick="addGasto()">${m ? 'Guardar cambios' : 'Guardar gasto'}</button>`;
     b.querySelectorAll('#g_cats .pill').forEach(p => p.onclick = () => {
+      const yaEstaba = p.classList.contains('on');
       b.querySelectorAll('#g_cats .pill').forEach(x=>x.classList.remove('on'));
       p.classList.add('on');
-      b.querySelector('#g_cats').dataset.suya = '1';   // elección suya: la frase ya no manda
+      // solo cuenta como elección suya si de verdad cambió algo: un roce sobre
+      // la que ya estaba puesta congelaba la categoría para siempre
+      if(!yaEstaba) b.querySelector('#g_cats').dataset.suya = '1';
     });
     if(!m){
       const caja = b.querySelector('#g_frase');
       caja.addEventListener('input', () => aplicarFrase(b, cats));
       // si corrige un campo a mano queda suyo; si lo vacía, se lo devuelve a la frase
-      ['#g_monto','#g_nota'].forEach(sel => {
+      ['#g_monto','#g_nota','#g_fecha'].forEach(sel => {
         const el = b.querySelector(sel);
         el.addEventListener('input', () => {
           if(el.value.trim()) el.dataset.suya = '1'; else delete el.dataset.suya;
@@ -1481,7 +1537,7 @@ function openSheet(tipo, id, deudaId){
         suyo > 0 ? '<br>Tienes ' + fmt(suyo) + ' apartados para esta deuda.' : ''}</p>
       <input type="hidden" id="a_deuda" value="${esc(d.id)}">
       <div class="field"><label for="a_monto">Cuánto abonas</label>
-        <input id="a_monto" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.monto : (suyo > 0 ? suyo : '')}"></div>
+        <input id="a_monto" class="money" type="text" inputmode="decimal" placeholder="0" autocomplete="off" value="${m ? m.monto : (suyo > 0 ? suyo : '')}"></div>
       <p class="hint" id="a_prev">Baja el saldo de la deuda. No toca tu disponible para gastar.</p>
       <div class="field"><label for="a_fecha">Fecha</label>
         <input id="a_fecha" type="date" value="${m ? m.fecha : hoy()}"></div>
@@ -1489,7 +1545,7 @@ function openSheet(tipo, id, deudaId){
         <input id="a_nota" type="text" placeholder="Abono de agosto…" value="${m ? esc(m.nota) : ''}"></div>
       <button class="btn acc wide" onclick="addAbono()">${m ? 'Guardar cambios' : 'Registrar abono'}</button>`;
     const upd = () => {
-      const v = Number(document.getElementById('a_monto').value) || 0;
+      const v = leerMonto('a_monto');
       const p = document.getElementById('a_prev');
       p.textContent = !v ? 'Baja el saldo de la deuda. No toca tu disponible para gastar.'
         : v > tope ? 'Son ' + fmt(v - tope) + ' más de lo que debes.'
@@ -1511,7 +1567,7 @@ function openSheet(tipo, id, deudaId){
       <div class="field"><label>Ícono</label>
         <div class="pills" id="d_icos">${ICONOS.map(i=>'<button class="pill'+(i===ico?' on':'')+'" data-i="'+i+'" style="font-size:18px;padding:8px 12px">'+i+'</button>').join('')}</div></div>
       <div class="field" style="margin-top:16px"><label for="d_total">Total a pagar por mes/ciclo</label>
-        <input id="d_total" class="money" type="number" inputmode="decimal" placeholder="0" min="0" value="${m ? m.total : ''}"></div>
+        <input id="d_total" class="money" type="text" inputmode="decimal" placeholder="0" autocomplete="off" value="${m ? m.total : ''}"></div>
       <div class="field"><label for="d_dia">Día del mes en que pagas</label>
         <input id="d_dia" type="number" inputmode="numeric" min="1" max="28" value="${m ? m.diaPago : 5}"></div>
       <p class="hint">${m ? 'Abonado en este ciclo: ' + fmt(e.abonado) + (e.pagada ? ' (¡Deuda pagada!)' : '') : 'Después registras abonos y el saldo va bajando hasta cero.'}</p>
@@ -1598,10 +1654,10 @@ function guardarMov(datos){
 }
 
 function addJornada(){
-  const monto = Number(document.getElementById('f_monto').value);
+  const monto = leerMonto('f_monto');
   if(!monto || monto <= 0){ toast('Escribe cuánto recibiste.'); return; }
   const reps = [...document.querySelectorAll('#f_reps input')]
-    .map(i => ({ deudaId: i.dataset.d, monto: Number(i.value) || 0 }))
+    .map(i => ({ deudaId: i.dataset.d, monto: leerMonto(i) }))
     .filter(r => r.monto > 0);
   const suma = reps.reduce((s,r)=>s+r.monto, 0);
   if(suma > monto){ toast('Estás apartando más de lo que recibiste.'); return; }
@@ -1627,7 +1683,7 @@ function addJornada(){
 }
 
 function addGasto(){
-  const monto = Number(document.getElementById('g_monto').value);
+  const monto = leerMonto('g_monto');
   if(!monto || monto <= 0){ toast('Escribe cuánto gastaste.'); return; }
   const sel = document.querySelector('#g_cats .pill.on');
   const nuevo = guardarMov({ tipo:'gasto', fecha:document.getElementById('g_fecha').value || hoy(),
@@ -1637,7 +1693,7 @@ function addGasto(){
 }
 
 function addAbono(){
-  const monto = Number(document.getElementById('a_monto').value);
+  const monto = leerMonto('a_monto');
   if(!monto || monto <= 0){ toast('Escribe cuánto abonas.'); return; }
   const dId = document.getElementById('a_deuda').value;
   const d = deuda(dId);
@@ -1657,7 +1713,7 @@ function addAbono(){
 
 function addDeuda(){
   const nombre = document.getElementById('d_nombre').value.trim();
-  const total = Number(document.getElementById('d_total').value);
+  const total = leerMonto('d_total');
   const dia = Number(document.getElementById('d_dia').value);
   if(!nombre){ toast('Ponle un nombre a la deuda.'); return; }
   if(!total || total <= 0){ toast('Escribe el total a pagar.'); return; }
@@ -1726,6 +1782,7 @@ function guardarNombre(id){
   const el = document.getElementById(id);
   if(!el) return;                       // explícito: nunca adivinar de qué campo leer
   const v = el.value.trim();
+  delete el.dataset.suya;               // ya está guardado: render() puede volver a pintarlo
   S.nombre = v.slice(0, 24);
   closeSheet(); render();
   toast(v ? '¡Mucho gusto, ' + v + '!' : 'Listo');
@@ -1753,13 +1810,34 @@ function exportData(){
   render();
   toast('Copia descargada');
 }
+/* Los ids viajan dentro de cadenas JS en los atributos onclick de las tarjetas,
+   y esc() no escapa la comilla simple. Un id normal nunca es problema porque
+   uid() solo produce letras y dígitos, pero un archivo importado trae ids
+   ajenos: un id con comillas podría salirse de la cadena y ejecutar código al
+   tocar la tarjeta. Se validan en la frontera, que es donde entran. */
+const ID_VALIDO = /^[A-Za-z0-9_-]{1,40}$/;
+function idsSanos(d){
+  const bien = v => v === undefined || v === null || v === '' || ID_VALIDO.test(String(v));
+  return (Array.isArray(d.deudas) ? d.deudas : []).every(x => x && ID_VALIDO.test(String(x.id || '')))
+    && (Array.isArray(d.movs) ? d.movs : []).every(m => m && ID_VALIDO.test(String(m.id || ''))
+        && bien(m.deudaId) && bien(m.origen));
+}
+/* Un movimiento sin fecha o sin monto hace reventar a delMes() y a totales(). */
+function movsSanos(movs){
+  return movs.every(m => m && typeof m.monto === 'number' && isFinite(m.monto)
+    && typeof m.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.fecha));
+}
+
 function importData(ev){
   const f = ev.target.files[0]; if(!f) return;
   const r = new FileReader();
   r.onload = () => {
+    const anterior = S;          // si algo falla, se vuelve a dejar como estaba
     try{
       const d = JSON.parse(r.result);
       if(!d || !Array.isArray(d.movs)) throw new Error('formato');
+      if(!movsSanos(d.movs)) throw new Error('movimientos incompletos');
+      if(!idsSanos(d)) throw new Error('ids con caracteres raros');
       // una copia vieja se migra igual: v1 no trae deudas, v2 no trae reservas
       S = !Array.isArray(d.deudas) ? migrarV1(d)
         : d.movs.some(m => m.tipo === 'reserva') ? conDefaults(d)
@@ -1767,7 +1845,12 @@ function importData(ev){
       S.ultimoRespaldo = hoy();   // si restauró, tiene el archivo a la mano
       S.avisoOculto = null;
       render(); toast('Datos restaurados');
-    }catch(e){ toast('Ese archivo no es una copia de Jornal.'); }
+    }catch(e){
+      /* Sin esto el estado quedaba reemplazado a medias: el aviso decía que no
+         había importado nada y la app se quedaba en blanco hasta reabrirla. */
+      S = anterior; render();
+      toast('Ese archivo no es una copia de Jornal.');
+    }
   };
   r.readAsText(f); ev.target.value = '';
 }

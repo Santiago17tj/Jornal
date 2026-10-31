@@ -118,7 +118,14 @@ Entiende cosas como:
 | veinte lucas en comida | $20.000 · Comida |
 | medio millón de arriendo | $500.000 · Casa |
 
-Si corriges un campo a mano, la frase ya no te lo vuelve a cambiar.
+También entiende **"ayer"** y **"anteayer"**: *"ayer gasté veinte mil en almuerzo"* le pone la
+fecha de ayer, y el eco te lo dice para que lo veas.
+
+Si corriges un campo a mano, la frase ya no te lo vuelve a cambiar. Y el eco siempre dice lo
+que se va a guardar de verdad, no lo que la app creyó entender.
+
+Los montos los puedes escribir como quieras: `20000`, `20.000` o `1.500.000`. Todos se
+entienden igual.
 
 ## Avisos en el teléfono
 

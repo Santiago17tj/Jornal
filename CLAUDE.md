@@ -212,6 +212,14 @@ Si cambias la forma de los datos, **incrementa la clave** y escribe la migració
 que alguien con datos viejos abra la app y vea todo en cero. Agregar un campo *opcional* que
 degrada bien no cuenta: `load()` hace `Object.assign({}, DEFAULTS, guardado)`.
 
+**`importData()` valida antes de tocar el estado y lo restaura si algo falla.** Dos razones:
+un movimiento sin fecha hacía reventar `delMes()` dejando la app en blanco con un aviso que
+mentía ("no es una copia de Jornal", cuando ya había reemplazado `S`); y los ids viajan dentro
+de cadenas JS en los `onclick` de las tarjetas, donde `esc()` no sirve porque **no escapa la
+comilla simple**. Los ids que crea `uid()` son solo letras y dígitos, pero un archivo
+importado trae ids ajenos: `idsSanos()` los valida en la frontera. Si alguna vez quitas esa
+validación, deja de interpolar ids en `onclick` y usa `data-` con `addEventListener`.
+
 `load()` y `save()` están envueltos en `try/catch` con fallback a una variable en memoria,
 porque algunos entornos de previsualización bloquean `localStorage`. Mantén ese patrón.
 
@@ -249,6 +257,9 @@ Funciones principales:
 - `activarAvisos()` / `desactivarAvisos()` / `revisarAvisosSistema()` — avisos del sistema;
   `hayAvisos()` y `estaInstalada()` son las comprobaciones previas
 - `conDefaults(base)` — estado nuevo clonando DEFAULTS en profundidad
+- `leerMonto(idOel)` — lee un campo de plata entendiendo "20.000" como veinte mil
+- `fechaDesplazada(dias)` / `detectarDia(tokens)` — "ayer" y "anteayer" en la frase
+- `idsSanos(d)` / `movsSanos(movs)` — validación de un archivo importado
 - `avisosActivos()` — único predicado de "los avisos están puestos", para etiqueta y acción
 - `fmt()` `uid()` `hoy()` `fechaCorta()` `esc()` `toast()` — utilidades
 
@@ -280,6 +291,18 @@ Reglas del parser que costaron pruebas y no hay que deshacer:
   quedaba sin categoría.
 - `numPalabra()` y `pistasDe()` leen con `hasOwnProperty`: sin eso, una categoría llamada
   `constructor` reventaba y la palabra `toString` se colaba como cifra.
+
+**El eco describe lo que quedó en los campos, no lo que entendió el intérprete.** Si ella ya
+había elegido otra categoría a mano, el eco anunciaba la detectada y se guardaba la suya: el
+aviso mentía justo en lo único que hace seguro a todo este invento. Y tocar la pill que **ya
+estaba puesta** no cuenta como elección suya: un roce congelaba la categoría para siempre.
+
+La frase entiende **"ayer"**, **"anteayer"** y **"hoy"** y mueve el campo de fecha, diciéndolo
+en el eco. Antes la palabra se borraba de la nota y el gasto de ayer quedaba fechado hoy, lo
+que el último día del mes lo mandaba al mes equivocado sin dejar rastro.
+
+Si la nota extraída acaba siendo el nombre de la categoría, se descarta: la fila de
+Movimientos la mostraría dos veces.
 
 **Quién manda sobre cada campo.** La frase gobierna los campos que ella no haya tocado; en
 cuanto corrige uno a mano queda suyo (`dataset.suya`) y la frase no vuelve a pisarlo. Esto no
@@ -418,7 +441,11 @@ se note. Una deuda liquidada se tiñe de verde y recibe un sello `PAGADA`.
 Reglas de UI que ya están aplicadas y deben mantenerse:
 
 - `env(safe-area-inset-*)` en el contenedor y en la barra inferior (notch y home indicator).
-- `inputmode="decimal"` en todo campo de dinero — abre el teclado numérico en iPhone.
+- **Los campos de dinero van `type="text"` con `inputmode="decimal"`, NUNCA `type="number"`.**
+  En un campo numérico el punto es el separador decimal, así que `"20.000"` —como ella escribe
+  veinte mil— se guardaba como **$20** sin avisar, y la misma hoja se contradecía porque la
+  caja de dictar sí lo leía bien. Se leen siempre con `leerMonto()`, nunca con `Number()`.
+  `inputmode="decimal"` mantiene el teclado numérico del iPhone.
 - `font-size: 16px` mínimo en inputs; con menos, Safari hace zoom automático al enfocar.
 - `@media (prefers-reduced-motion: reduce)` desactiva animaciones.
 - Foco de teclado visible (`outline` en `:focus`).
@@ -507,6 +534,17 @@ Validaciones mínimas antes de dar algo por terminado:
   bienvenida. Era el caso que lo perdía.
 - **El botón de avisos no miente**: con `avisosOn: true` y el permiso en `default`, debe decir
   "Activar" y al tocarlo pedir el permiso, no desactivarlos.
+- **Escribir `20.000` a mano en un campo de dinero guarda $20.000, no $20.** Pruébalo en
+  gasto, ingreso, abono y total de la deuda. Era el fallo más silencioso de todos.
+- **El eco coincide con lo que se guarda.** Escribe una frase, cambia la categoría a mano,
+  escribe otra frase: el eco debe nombrar la categoría que ella eligió, no la detectada. Y
+  tocar la pill que ya estaba puesta no debe congelar nada.
+- **"ayer gasté veinte mil" mueve la fecha** y el eco lo dice. Quitar el "ayer" la devuelve a
+  hoy; si ella toca la fecha a mano, la frase no la pisa.
+- **El nombre a medio escribir sobrevive a un `render()`**: escríbelo en Ajustes, agrega una
+  categoría sin guardarlo, y debe seguir ahí.
+- **Importar un archivo roto no deja la app en blanco** ni pierde sus datos, e importar uno
+  con ids raros se rechaza sin ejecutar nada.
 - Avisos: con el permiso simulado en `granted`, abrir la app debe lanzar una notificación solo
   por la deuda que vence dentro de `DIAS_VENCE`, no repetirla al reabrir, y no lanzar nada por
   las pagadas ni las archivadas. Con el permiso en `denied` no puede reventar nada.
